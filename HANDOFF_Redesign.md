@@ -92,16 +92,16 @@ Every section must have **one dynamic answer sentence** (in Thai) computed from 
 
 **Goal:** an attractive, readable page organized into 4 sections, one per question.
 
-- [ ] Move the CSS embedded in `app.index_string` into `assets/style.css` (Dash loads `assets/` automatically). Keep the existing theme variables: deep navy background, fire orange `#EA580C`, amber `#F59E0B`, durian green `#84CC16`, fonts Sarabun/Inter
-- [ ] Use CSS Grid for the layout and make it responsive for narrow screens
-- [ ] Create a reusable card helper for every chart: card header, accent line colored per section, subtle hover effect, `dcc.Loading`
-- [ ] Build 4 sections. Each has: a number badge, a Thai question title, a section accent color, and one dynamic Thai answer sentence (handle the empty-data case)
-- [ ] Top of page: header with a KPI strip (hotspots, durian area, selected area) including a year-over-year delta **only when the previous year exists in the data**; an auto-generated Key Insights bar with 3 sentences; a sticky filter bar; and the disclaimer as an amber bar that is prominent but compact
-- [ ] Fix the two year input boxes beside the slider (empty white boxes) so they are readable in the dark theme
-- [ ] Chart font size at least 12 px
-- [ ] Replace the forest-type treemap (2 blocks) with a horizontal bar chart that is clickable and filters the forest type
-- [ ] Balance the heights of the left and right columns (no leftover empty space)
-- [ ] Keep existing component `id`s as much as possible. If one changes, update every callback that references it
+- [x] Move the CSS embedded in `app.index_string` into `assets/style.css` (Dash loads `assets/` automatically). Keep the existing theme variables: deep navy background, fire orange `#EA580C`, amber `#F59E0B`, durian green `#84CC16`, fonts Sarabun/Inter
+- [x] Use CSS Grid for the layout and make it responsive for narrow screens
+- [x] Create a reusable card helper for every chart: card header, accent line colored per section, subtle hover effect, `dcc.Loading`
+- [x] Build 4 sections. Each has: a number badge, a Thai question title, a section accent color, and one dynamic Thai answer sentence (handle the empty-data case)
+- [x] Top of page: header with a KPI strip (hotspots, durian area, selected area) including a year-over-year delta **only when the previous year exists in the data**; an auto-generated Key Insights bar with 3 sentences; a sticky filter bar; and the disclaimer as an amber bar that is prominent but compact
+- [x] Fix the two year input boxes beside the slider (empty white boxes) so they are readable in the dark theme
+- [x] Chart font size at least 12 px
+- [x] Replace the forest-type treemap (2 blocks) with a horizontal bar chart that is clickable and filters the forest type
+- [x] Balance the heights of the left and right columns (no leftover empty space)
+- [x] Keep existing component `id`s as much as possible. If one changes, update every callback that references it
 
 **Key Insights (format examples):** the peak month and its share, the top tambon and its count, the peak time window and its share. Every sentence is computed from the currently filtered data.
 
@@ -196,7 +196,7 @@ Decisions needed from the user: <if any>
 |---|---|---|---|
 | 0 | ✅ complete | snapshot: before redesign | Dashboard verified at HTTP 200 on localhost. |
 | A | ✅ complete | fix: correct KPI totals | Verified 8,606 hotspot total and BE 2568 durian area 13,732.5 rai; historical 8,610 could not be reproduced from available source/history. |
-| B | ⬜ not started | | |
+| B | ✅ complete | redesign: build responsive dashboard layout | Moved dashboard styles to `assets/style.css`; added four responsive question sections, dynamic KPIs/insights, synchronized year controls, dark filter controls, and a clickable forest-type bar chart. Verified all required filter states and cross-filter paths; HTTP 200 and no server callback tracebacks on port 8051 (8050 was occupied). Browser load was clean; switching external basemap styles produced a remote Map error. |
 | C | ⬜ not started | | |
 | D | ⬜ not started | | |
 | E | ⬜ not started | | |

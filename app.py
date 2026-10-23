@@ -98,11 +98,23 @@ def compute_kpis(filter_state, year_range):
         comparison_events = comparison_events[comparison_events["ประเภทป่าอนุรักษ์"] == state["pa"]]
     if state.get("month"):
         comparison_events = comparison_events[comparison_events["month"] == state["month"]]
+    if state.get("season"):
+        dry_months = {11, 12, 1, 2, 3, 4}
+        if state["season"] == "dry":
+            comparison_events = comparison_events[comparison_events["month"].isin(dry_months)]
+        elif state["season"] == "rainy":
+            comparison_events = comparison_events[~comparison_events["month"].isin(dry_months)]
 
     selected_year = year_range[1]
     current_total = int((comparison_events["date_parsed"].dt.year == selected_year).sum())
-    previous_total = int((comparison_events["date_parsed"].dt.year == selected_year - 1).sum())
-    yoy = None if previous_total == 0 else (current_total - previous_total) / previous_total * 100
+    previous_year = selected_year - 1
+    previous_total = int((comparison_events["date_parsed"].dt.year == previous_year).sum())
+    available_years = set(df_events_all["date_parsed"].dt.year.unique())
+    yoy = (
+        None
+        if previous_year not in available_years or previous_total == 0
+        else (current_total - previous_total) / previous_total * 100
+    )
     return {
         "events": events,
         "joined": joined,
@@ -125,255 +137,33 @@ app = dash.Dash(
     title=APP_TITLE,
 )
 
-# ─── Custom Dark Aesthetics (Matching image.png) ───────────────
-app.index_string = '''
-<!DOCTYPE html>
-<html>
-<head>
-    {%metas%}
-    <title>{%title%}</title>
-    {%favicon%}
-    {%css%}
-    <style>
-        :root {
-            --bg-main: #0A0E17;
-            --bg-card: #131B2B;
-            --bg-card-header: #0E1624;
-            --border-color: #202D42;
-            --fire-orange: #EA580C;
-            --fire-amber: #F59E0B;
-            --fire-glow: rgba(234, 88, 12, 0.25);
-            --durian-green: #84CC16;
-            --text-main: #F1F5F9;
-            --text-muted: #94A3B8;
-        }
-        body {
-            font-family: 'Sarabun', 'Inter', sans-serif;
-            background-color: var(--bg-main);
-            color: var(--text-main);
-            margin: 0;
-            padding: 0;
-        }
-        /* Top Navigation Header matching SAS Viya */
-        .viya-header {
-            background: linear-gradient(90deg, #070B12 0%, #111A29 50%, #070B12 100%);
-            border-bottom: 2px solid var(--fire-orange);
-            padding: 12px 24px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
-        }
-        .viya-title-box {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .viya-globe-icon {
-            font-size: 2.2rem;
-            color: #F8FAFC;
-            background: radial-gradient(circle, #EA580C 20%, transparent 70%);
-            border-radius: 50%;
-            padding: 2px;
-        }
-        .viya-title {
-            font-size: 1.55rem;
-            font-weight: 800;
-            color: #FFFFFF;
-            letter-spacing: -0.3px;
-            margin: 0;
-            line-height: 1.1;
-        }
-        .viya-subtitle {
-            font-size: 0.85rem;
-            color: var(--fire-amber);
-            font-weight: 600;
-            margin: 2px 0 0 0;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .header-kpi-block {
-            display: flex;
-            align-items: center;
-            gap: 24px;
-        }
-        .header-kpi-item {
-            text-align: right;
-            border-left: 1px solid var(--border-color);
-            padding-left: 16px;
-        }
-        .header-kpi-label {
-            font-size: 0.72rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin: 0;
-        }
-        .header-kpi-val {
-            font-size: 1.5rem;
-            font-weight: 800;
-            color: #FFFFFF;
-            line-height: 1.2;
-            margin: 0;
-        }
-        /* Card Panels */
-        .viya-panel {
-            background-color: var(--bg-card);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
-            margin-bottom: 12px;
-            overflow: hidden;
-        }
-        .viya-panel-header {
-            background-color: var(--bg-card-header);
-            color: #F8FAFC;
-            font-size: 0.82rem;
-            font-weight: 700;
-            padding: 8px 14px;
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            letter-spacing: 0.2px;
-        }
-        .viya-panel-body {
-            padding: 10px;
-        }
-        /* Active Filter Badges Bar */
-        .filter-status-bar {
-            background-color: #0E1624;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 6px 14px;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        .filter-pill {
-            background: #1E293B;
-            border: 1px solid var(--fire-orange);
-            color: #F8FAFC;
-            font-size: 0.76rem;
-            padding: 3px 10px;
-            border-radius: 14px;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-        /* Most Active Days / Hours list item (inspired by image.png left side) */
-        .rank-list-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 4px 8px;
-            margin-bottom: 4px;
-            background-color: #0E1624;
-            border-radius: 4px;
-            font-size: 0.78rem;
-        }
-        .rank-list-badge {
-            background-color: #D9531E;
-            color: #fff;
-            padding: 2px 7px;
-            border-radius: 3px;
-            font-weight: 700;
-            font-size: 0.74rem;
-        }
-        /* Disclaimer Alert */
-        .viya-disclaimer {
-            background-color: rgba(245, 158, 11, 0.12) !important;
-            border: 1px solid rgba(245, 158, 11, 0.35) !important;
-            color: #FDE68A !important;
-            font-size: 0.78rem !important;
-            padding: 7px 14px !important;
-            border-radius: 6px !important;
-            margin-bottom: 12px !important;
-        }
-        /* DataTable Dark Overrides */
-        .dash-table-container .dash-spreadsheet-container {
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        .dash-table-container .dash-spreadsheet-container table {
-            font-family: 'Sarabun', sans-serif !important;
-            font-size: 0.78rem !important;
-        }
-        /* RangeSlider Dark Theme styling */
-        .rc-slider {
-            padding: 12px 0 !important;
-        }
-        .rc-slider-rail {
-            background-color: #202D42 !important;
-            height: 6px !important;
-        }
-        .rc-slider-track {
-            background-color: #EA580C !important;
-            height: 6px !important;
-        }
-        .rc-slider-handle {
-            border: 2px solid #EA580C !important;
-            background-color: #0E1624 !important;
-            width: 15px !important;
-            height: 15px !important;
-            margin-top: -5px !important;
-            opacity: 1 !important;
-        }
-        .rc-slider-handle:hover, .rc-slider-handle:active {
-            border-color: #F59E0B !important;
-            box-shadow: 0 0 8px rgba(245, 158, 11, 0.6) !important;
-        }
-        .rc-slider-dot {
-            background-color: #202D42 !important;
-            border-color: #202D42 !important;
-            bottom: -1px !important;
-        }
-        .rc-slider-dot-active {
-            border-color: #EA580C !important;
-            background-color: #EA580C !important;
-        }
-        .rc-slider-mark-text {
-            color: #94A3B8 !important;
-            font-family: 'Sarabun', sans-serif !important;
-            font-size: 0.72rem !important;
-            top: 20px !important;
-        }
-        .rc-slider-mark-text-active {
-            color: #F8FAFC !important;
-            font-weight: 600 !important;
-        }
-        .rc-slider-tooltip-inner {
-            background-color: #0E1624 !important;
-            color: #F8FAFC !important;
-            border: 1px solid #EA580C !important;
-            font-family: 'Sarabun', sans-serif !important;
-            font-size: 0.75rem !important;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.7) !important;
-            border-radius: 4px !important;
-            padding: 3px 8px !important;
-        }
-    </style>
-</head>
-<body>
-    {%app_entry%}
-    <footer>
-        {%config%}
-        {%scripts%}
-        {%renderer%}
-    </footer>
-</body>
-</html>
-'''
+# ─── Dashboard Layout Helpers ─────────────────────────────────
+def chart_card(title, content, wide=False, action=None):
+    card_class = "chart-card chart-card-wide" if wide else "chart-card"
+    header_children = [html.Span(title)]
+    if action is not None:
+        header_children.append(action)
+    return html.Div([
+        html.Div(header_children, className="chart-card-header"),
+        dcc.Loading(content, type="circle"),
+    ], className=card_class)
 
-# ─── Base Layout ───────────────────────────────────────────────
+
+def question_section(number, title, answer_id, cards, section_class, disclaimer=None):
+    children = [
+        html.H2([
+            html.Span(number, className="question-number"),
+            html.Span(title),
+        ], className="question-heading"),
+        html.P(id=answer_id, className="section-answer"),
+        html.Div(cards, className="section-cards"),
+    ]
+    if disclaimer:
+        children.append(html.P(disclaimer, className="section-disclaimer"))
+    return html.Section(children, className=f"question-section {section_class}")
+
+
 app.layout = html.Div([
-
-    # Hidden Store: Tracks All Interconnected Active Filters
     dcc.Store(
         id="cross-filter-store",
         data={
@@ -385,330 +175,189 @@ app.layout = html.Div([
             "season": None,
         }
     ),
-
-    # ── Top Navigation Header (Styled like SAS Viya Global Forest Fire) ─
-    html.Div([
-        # Left Brand
+    html.Header([
         html.Div([
-            html.Div("🌐", className="viya-globe-icon"),
+            html.Div("🌐", className="brand-mark"),
             html.Div([
-                html.H1("Kanchanaburi Forest Fire & Durian Observatory", className="viya-title"),
-                html.P("ระบบสำรวจจุดความร้อนไฟป่าและพื้นที่เพาะปลูกทุเรียน จังหวัดกาญจนบุรี", className="viya-subtitle"),
+                html.H1("หอดูดาวไฟป่าและพื้นที่ปลูกทุเรียน จังหวัดกาญจนบุรี", className="brand-title"),
+                html.P("ข้อมูลจุดความร้อนและพื้นที่เพาะปลูกระดับตำบล", className="brand-subtitle"),
             ]),
-        ], className="viya-title-box"),
-
-        # Right Header KPIs
+        ], className="brand-block"),
         html.Div([
             html.Div([
-                html.P("Total Hotspots:", className="header-kpi-label"),
-                html.P("—", id="header-hotspot-val", className="header-kpi-val", style={"color": "#EA580C"}),
-                html.P("(ตามตัวกรองที่เลือก)", style={"fontSize": "0.68rem", "color": "#94A3B8", "margin": 0}),
-            ], className="header-kpi-item"),
+                html.P("จุดความร้อนในช่วงที่เลือก", className="kpi-label"),
+                html.Div(id="kpi-hotspot-value", className="kpi-value"),
+                html.P(id="kpi-hotspot-delta", className="kpi-meta"),
+            ], className="kpi-card kpi-hotspot"),
             html.Div([
-                html.P("Durian Cultivation:", className="header-kpi-label"),
-                html.P("—", id="header-durian-val", className="header-kpi-val", style={"color": "#84CC16"}),
-                html.P("(ตามตัวกรองที่เลือก)", style={"fontSize": "0.68rem", "color": "#94A3B8", "margin": 0}),
-            ], className="header-kpi-item"),
+                html.P("พื้นที่ทุเรียนปีล่าสุดที่เลือก", className="kpi-label"),
+                html.Div(id="kpi-durian-value", className="kpi-value"),
+                html.P(id="kpi-durian-meta", className="kpi-meta"),
+            ], className="kpi-card kpi-durian"),
             html.Div([
-                html.P("Data Source:", className="header-kpi-label"),
-                html.P("สนง.เกษตรฯ / GISTDA", style={"fontSize": "0.95rem", "fontWeight": "700", "color": "#E2E8F0", "margin": 0}),
-                html.P("มาตรฐานระบบ GIS กาญจนบุรี", style={"fontSize": "0.68rem", "color": "#94A3B8", "margin": 0}),
-            ], className="header-kpi-item"),
-        ], className="header-kpi-block"),
-    ], className="viya-header"),
-
-    # ── Main Content Container ─────────────────────────────────
-    dbc.Container([
-
-        # Disclaimer Alert
+                html.P("พื้นที่ที่เลือก", className="kpi-label"),
+                html.Div(id="kpi-selected-area", className="kpi-value"),
+                html.P("ขอบเขตการปกครอง", className="kpi-meta"),
+            ], className="kpi-card kpi-area"),
+            html.Div([
+                html.P("คุณภาพข้อมูลจุดความร้อน", className="kpi-label"),
+                html.Div(id="kpi-quality-value", className="kpi-value"),
+                html.P(id="kpi-quality-meta", className="kpi-meta"),
+            ], className="kpi-card kpi-quality"),
+        ], className="kpi-strip"),
+    ], className="dashboard-header"),
+    html.Main([
+        html.Section([
+            html.H2("💡 ข้อมูลสำคัญจากตัวกรองปัจจุบัน", className="insight-heading"),
+            html.Div(id="key-insights", className="key-insights"),
+        ], className="key-insights-wrap"),
         dbc.Alert([
-            html.Strong("⚠️ คำเตือนสำคัญด้านการตีความข้อมูล (Disclaimer): "),
+            html.Strong("⚠️ ข้อจำกัดในการตีความ: "),
             html.Span(CAUSAL_DISCLAIMER),
-        ], className="viya-disclaimer mt-2"),
-        dbc.Alert(id="integrity-warning", color="danger", is_open=False, className="mb-2"),
-
-        # ── Global Filter Bar & Interactivity Indicator ────────
-        html.Div([
-            # Active Pills
+        ], className="viya-disclaimer"),
+        dbc.Alert(id="integrity-warning", color="danger", is_open=False, className="integrity-warning"),
+        html.Section([
             html.Div([
-                html.Span("🔍 สถานะตัวกรอง (Interactivity): ", style={"fontSize": "0.78rem", "color": "#94A3B8", "fontWeight": "600"}),
-                html.Span(id="filter-pills-container"),
-            ], style={"display": "flex", "alignItems": "center", "flexWrap": "wrap", "gap": "6px"}),
-
-            # Reset Button & Controls
-            html.Div([
-                dbc.Button("🔄 ล้างตัวกรองทั้งหมด (Reset All)", id="btn-reset", color="danger", outline=True, size="sm",
-                           style={"fontSize": "0.75rem", "padding": "3px 10px", "borderRadius": "14px"}),
-            ], style={"display": "flex", "alignItems": "center", "gap": "10px"}),
-        ], className="filter-status-bar"),
-
-        # Secondary Filters Drawer
-        dbc.Card([
-            dbc.CardBody([
-                dbc.Row([
-                    dbc.Col([
-                        html.Label("📅 ช่วงปี พ.ศ. (ค.ศ.)", style={"fontSize": "0.75rem", "color": "#94A3B8", "fontWeight": "600"}),
-                        dcc.RangeSlider(
-                            id="filter-year",
-                            min=year_ce_min, max=year_ce_max, step=1,
-                            value=[year_ce_min, year_ce_max],
-                            marks={y: f"{y+543} ({y})" for y in range(year_ce_min, year_ce_max + 1)},
-                            tooltip={"placement": "bottom"},
-                        ),
-                    ], md=4),
-                    dbc.Col([
-                        html.Label("🏛️ อำเภอ (District)", style={"fontSize": "0.75rem", "color": "#94A3B8", "fontWeight": "600"}),
-                        dcc.Dropdown(
-                            id="filter-amphoe",
-                            options=[{"label": a, "value": a} for a in amphoe_opts],
-                            placeholder="ทั้งหมด (หรือคลิกจากกราฟ/แผนที่)",
-                            style={"color": "#000"},
-                        ),
-                    ], md=3),
-                    dbc.Col([
-                        html.Label("🌲 ประเภทป่าอนุรักษ์ (คลิกจาก Treemap ด้านล่างได้)", style={"fontSize": "0.75rem", "color": "#94A3B8", "fontWeight": "600"}),
-                        dcc.Dropdown(
-                            id="filter-pa",
-                            options=[{"label": p, "value": p} for p in pa_opts],
-                            placeholder="ทั้งหมด",
-                            style={"color": "#000"},
-                        ),
-                    ], md=3),
-                    dbc.Col([
-                        html.Label("📡 CONFEDENCE (คลิกจาก Donut ด้านล่างได้)", style={"fontSize": "0.75rem", "color": "#94A3B8", "fontWeight": "600"}),
-                        dcc.Dropdown(
-                            id="filter-conf",
-                            options=[{"label": c, "value": c} for c in conf_opts],
-                            placeholder="ทั้งหมด",
-                            style={"color": "#000"},
-                        ),
-                    ], md=2),
-                ], className="align-items-center g-2"),
-            ], style={"padding": "8px 14px"}),
-        ], className="viya-panel"),
-
-        # ── Phase 9 scorecards ─────────────────────────────────
-        dbc.Row([
-            dbc.Col(dbc.Card([
-                html.Div("จุดความร้อนสะสม", className="viya-panel-header"),
-                dbc.CardBody([
-                    html.Div(id="kpi-hotspot-value", style={"fontSize": "2.1rem", "fontWeight": "800", "color": "#EA580C"}),
-                    html.Div(id="kpi-hotspot-delta", style={"fontSize": "0.78rem", "color": "#94A3B8"}),
-                ]),
-            ], className="viya-panel h-100"), md=4, className="mb-2"),
-            dbc.Col(dbc.Card([
-                html.Div("พื้นที่ปลูกทุเรียนในช่วงปีที่เลือก", className="viya-panel-header"),
-                dbc.CardBody([
-                    html.Div(id="kpi-durian-value", style={"fontSize": "2.1rem", "fontWeight": "800", "color": "#84CC16"}),
-                    html.Div(id="kpi-durian-meta", style={"fontSize": "0.78rem", "color": "#94A3B8"}),
-                ]),
-            ], className="viya-panel h-100"), md=4, className="mb-2"),
-            dbc.Col(dbc.Card([
-                html.Div("คุณภาพข้อมูลจุดความร้อน", className="viya-panel-header"),
-                dbc.CardBody([
-                    html.Div(id="kpi-quality-value", style={"fontSize": "2.1rem", "fontWeight": "800", "color": "#38BDF8"}),
-                    html.Div(id="kpi-quality-meta", style={"fontSize": "0.78rem", "color": "#94A3B8"}),
-                ]),
-            ], className="viya-panel h-100"), md=4, className="mb-2"),
-        ], className="g-2"),
-
-        # ── MAIN 2-COLUMN COCKPIT GRID ─────────────────────────
-        dbc.Row([
-
-            # ═══════════════════════════════════════════════════
-            # LEFT COLUMN: Analytics, Gauges & Charts (~58% width)
-            # ═══════════════════════════════════════════════════
-            dbc.Col([
-
-                # Row 1: Most Active Hours (List) + Fire Activity Trend (Spline Area)
-                dbc.Row([
-                    # Left: Top Active Hours list (Matching SAS Viya 'Most active days' on left)
-                    dbc.Col([
-                        dbc.Card([
-                            html.Div("🔥 ช่วงเวลาเกิดเหตุสูงสุด", className="viya-panel-header"),
-                            dbc.CardBody([
-                                html.Div(id="top-hours-list"),
-                            ], style={"padding": "8px 10px"}),
-                        ], className="viya-panel h-100"),
-                    ], md=4, className="mb-2"),
-
-                    # Center: Fire Activity Trend (Bar + Spline Line)
-                    dbc.Col([
-                        dbc.Card([
-                            html.Div([
-                                html.Span("📈 ฤดูกาลจุดความร้อนรายเดือน (คลิกข้อมูลเพื่อกรองเดือน)"),
-                            ], className="viya-panel-header"),
-                            dbc.CardBody([
-                                dcc.Graph(id="chart-activity", style={"height": "210px"}),
-                            ], className="p-1"),
-                        ], className="viya-panel h-100"),
-                    ], md=8, className="mb-2"),
-                ], className="g-2"),
-
-                # Phase 9C: recurrence and district composition
-                dbc.Row([
-                    dbc.Col([
-                        dbc.Card([
-                            html.Div("🔝 10 ตำบลที่พบจุดความร้อนสูงสุด (คลิกแท่งเพื่อกรอง)", className="viya-panel-header"),
-                            dbc.CardBody([dcc.Graph(id="chart-top-tambon", style={"height": "280px"})], className="p-1"),
-                        ], className="viya-panel h-100"),
-                    ], md=6, className="mb-2"),
-                    dbc.Col([
-                        dbc.Card([
-                            html.Div("🔁 จำนวนวันรายงานซ้ำตามตำบล (คลิกแท่งเพื่อกรอง)", className="viya-panel-header"),
-                            dbc.CardBody([dcc.Graph(id="chart-recurrence", style={"height": "280px"})], className="p-1"),
-                        ], className="viya-panel h-100"),
-                    ], md=6, className="mb-2"),
-                ], className="g-2"),
-                dbc.Row([
-                    dbc.Col([
-                        dbc.Card([
-                            html.Div("🏞️ จุดความร้อนตามอำเภอและประเภทป่า (คลิกแท่งเพื่อกรอง)", className="viya-panel-header"),
-                            dbc.CardBody([dcc.Graph(id="chart-district-forest", style={"height": "300px"})], className="p-1"),
-                        ], className="viya-panel h-100"),
-                    ], md=12, className="mb-2"),
-                ], className="g-2"),
-
-                # Row 2: Seasonality split
-                dbc.Row([
-                    dbc.Col([
-                        dbc.Card([
-                            html.Div("🌦️ สัดส่วนฤดูแล้งและฤดูฝน (คลิกส่วนเพื่อกรอง)", className="viya-panel-header"),
-                            dbc.CardBody([
-                                dcc.Graph(id="chart-seasonality", style={"height": "180px"}),
-                            ], className="p-1"),
-                        ], className="viya-panel h-100"),
-                    ], md=12, className="mb-2"),
-                ], className="g-2"),
-
-                # Row 3: Confidence Donut + Forest Land Cover Treemap
-                dbc.Row([
-                    # Confidence Donut (Thick ring with center label, click slice to filter)
-                    dbc.Col([
-                        dbc.Card([
-                            html.Div("📡 ระดับความเชื่อมั่น (คลิกวงแหวน)", className="viya-panel-header"),
-                            dbc.CardBody([
-                                dcc.Graph(id="chart-conf-donut", style={"height": "190px"}),
-                            ], className="p-1"),
-                        ], className="viya-panel h-100"),
-                    ], md=5, className="mb-2"),
-
-                    # Forest Cover Horizontal Bar (click bar to filter)
-                    dbc.Col([
-                        dbc.Card([
-                            html.Div("🌲 จุดความร้อนแยกประเภทป่า (คลิกแท่งเพื่อกรอง)", className="viya-panel-header"),
-                            dbc.CardBody([
-                                dcc.Graph(id="chart-pa-treemap", style={"height": "190px"}),
-                            ], className="p-1"),
-                        ], className="viya-panel h-100"),
-                    ], md=7, className="mb-2"),
-                ], className="g-2"),
-
-                # Row 4: Section D Simple Comparison + Context Callout Box
-                dbc.Row([
-                    # Simple Comparison Bar Chart
-                    dbc.Col([
-                        dbc.Card([
-                            html.Div("⚖️ ค่าเฉลี่ยจุดความร้อน: ปลูกทุเรียน vs ไม่ปลูก", className="viya-panel-header"),
-                            dbc.CardBody([
-                                dcc.Graph(id="chart-simple-comparison", style={"height": "180px"}),
-                            ], className="p-1"),
-                        ], className="viya-panel h-100"),
-                    ], md=6, className="mb-2"),
-
-                    # Dynamic Insight & Context Box (styled like SAS Viya Callout Box with '?' icon)
-                    dbc.Col([
-                        dbc.Card([
-                            html.Div("💡 คำอธิบายเชิงบริบทและข้อเท็จจริง", className="viya-panel-header"),
-                            dbc.CardBody([
-                                html.Div(id="dynamic-context-card"),
-                            ], style={"padding": "10px", "fontSize": "0.78rem", "lineHeight": "1.5"}),
-                        ], className="viya-panel h-100"),
-                    ], md=6, className="mb-2"),
-                ], className="g-2"),
-
-            ], lg=7, md=12),
-
-            # ═══════════════════════════════════════════════════
-            # RIGHT COLUMN: Map & Durian Data Table (~42% width)
-            # ═══════════════════════════════════════════════════
-            dbc.Col([
-
-                # Spatial Map Panel (Satellite / Dark Matter styled like SAS Viya map)
-                dbc.Card([
+                html.Label("ช่วงปี ค.ศ.", className="filter-label"),
+                html.Div([
+                    dcc.RangeSlider(
+                        id="filter-year",
+                        min=year_ce_min,
+                        max=year_ce_max,
+                        step=1,
+                        value=[year_ce_min, year_ce_max],
+                        marks={year: str(year) for year in range(year_ce_min, year_ce_max + 1)},
+                    ),
                     html.Div([
-                        html.Span("🗺️ แผนที่พิกัดดาวเทียม (คลิกจุดเพื่อเลือกตำบล)"),
-                        html.Div([
-                            dbc.RadioItems(
-                                id="map-basemap",
-                                options=[
-                                    {"label": " 🛰️ ดาวเทียม", "value": "satellite"},
-                                    {"label": " 🌑 มืด", "value": "carto-darkmatter"},
-                                    {"label": " 🗺️ ถนน", "value": "open-street-map"},
-                                ],
-                                value="satellite",
-                                inline=True,
-                                className="small",
-                                style={"fontSize": "0.72rem"}
-                            ),
-                            dbc.RadioItems(
-                                id="map-mode",
-                                options=[
-                                    {"label": " จุด", "value": "scatter"},
-                                    {"label": " ความหนาแน่น", "value": "density"},
-                                ],
-                                value="scatter",
-                                inline=True,
-                                className="small",
-                                style={"fontSize": "0.72rem"},
-                            ),
-                        ], style={"display": "flex", "gap": "10px"}),
-                    ], className="viya-panel-header"),
-                    dbc.CardBody([
-                        html.P(f"ℹ️ {MAP_CRS_NOTE}", style={"fontSize": "0.7rem", "color": "#F59E0B", "margin": "0 0 4px"}),
+                        dcc.Input(
+                            id="filter-year-start",
+                            type="number",
+                            min=year_ce_min,
+                            max=year_ce_max,
+                            step=1,
+                            value=year_ce_min,
+                            debounce=True,
+                            className="year-input",
+                        ),
+                        html.Span("–", className="year-separator"),
+                        dcc.Input(
+                            id="filter-year-end",
+                            type="number",
+                            min=year_ce_min,
+                            max=year_ce_max,
+                            step=1,
+                            value=year_ce_max,
+                            debounce=True,
+                            className="year-input",
+                        ),
+                    ], className="year-inputs"),
+                ], className="filter-years"),
+            ], className="filter-field filter-year-field"),
+            html.Div([
+                html.Label("อำเภอ", className="filter-label"),
+                dcc.Dropdown(
+                    id="filter-amphoe",
+                    options=[{"label": district, "value": district} for district in amphoe_opts],
+                    placeholder="ทุกอำเภอ",
+                    className="filter-select",
+                ),
+            ], className="filter-field"),
+            html.Div([
+                html.Label("ประเภทป่าอนุรักษ์", className="filter-label"),
+                dcc.Dropdown(
+                    id="filter-pa",
+                    options=[{"label": forest, "value": forest} for forest in pa_opts],
+                    placeholder="ทุกประเภท",
+                    className="filter-select",
+                ),
+            ], className="filter-field"),
+            html.Div([
+                html.Label("ความเชื่อมั่น", className="filter-label"),
+                dcc.Dropdown(
+                    id="filter-conf",
+                    options=[{"label": confidence, "value": confidence} for confidence in conf_opts],
+                    placeholder="ทุกระดับ",
+                    className="filter-select",
+                ),
+            ], className="filter-field"),
+            html.Div([
+                html.Div([
+                    html.Span("ตัวกรองที่ใช้:"),
+                    html.Span(id="filter-pills-container", className="filter-pills"),
+                ], className="filter-actions-status"),
+                dbc.Button("ล้างตัวกรอง", id="btn-reset", color="danger", outline=True, size="sm"),
+            ], className="filter-actions"),
+        ], className="filter-bar"),
+        html.Div([
+            question_section("1", "จุดความร้อนเกิดขึ้นเมื่อไร?", "answer-when", [
+                chart_card("ช่วงเวลาที่พบจุดความร้อนมาก", html.Div(id="top-hours-list")),
+                chart_card(
+                    "รูปแบบจุดความร้อนรายเดือน (คลิกแท่งเพื่อกรอง)",
+                    dcc.Graph(id="chart-activity", style={"height": "290px"}),
+                    wide=True,
+                ),
+                chart_card(
+                    "สัดส่วนตามฤดูกาล (คลิกแท่งเพื่อกรอง)",
+                    dcc.Graph(id="chart-seasonality", style={"height": "225px"}),
+                    wide=True,
+                ),
+            ], "section-when"),
+            question_section("2", "จุดความร้อนอยู่ที่ไหน?", "answer-where", [
+                chart_card(
+                    "แผนที่จุดความร้อน (คลิกจุดเพื่อเลือกตำบล)",
+                    html.Div([
+                        html.P(MAP_CRS_NOTE, className="map-crs-note"),
                         dcc.Graph(
                             id="spatial-map",
-                            style={"height": "460px"},
-                            config={"displayModeBar": True, "scrollZoom": True}
+                            style={"height": "420px"},
+                            config={"displayModeBar": True, "scrollZoom": True},
                         ),
-                    ], className="p-1"),
-                ], className="viya-panel mb-2"),
-
-                # Durian Cultivation Ranking Table (like SAS Viya Military Grid table)
-                dbc.Card([
-                    html.Div([
-                        html.Span("🥭 ตารางพื้นที่ปลูกทุเรียนรายตำบล (คลิกแถวเพื่อกรอง)"),
-                        html.Span("🟡 = 0.0 ไร่ | ⬜ = Missing", style={"fontSize": "0.7rem", "color": "#94A3B8"}),
-                    ], className="viya-panel-header"),
-                    dbc.CardBody([
-                        html.Div(id="durian-table-container"),
-                    ], style={"padding": "8px"}),
-                ], className="viya-panel mb-2"),
-
-                # Annual Trend Line Chart for Selected Location
-                dbc.Card([
-                    html.Div([
-                        html.Span("📈 แนวโน้มพื้นที่ปลูกทุเรียนรายปี (พ.ศ. 2561–2568)"),
-                    ], className="viya-panel-header"),
-                    dbc.CardBody([
-                        dcc.Graph(id="chart-durian-trend", style={"height": "165px"}),
-                    ], className="p-1"),
-                ], className="viya-panel"),
-
-            ], lg=5, md=12),
-
-        ], className="g-2"),
-
-        # Footer
-        html.Footer([
-            html.P("Kanchanaburi Wildfire & Durian Cultivation Analytics Dashboard | Designed strictly following BRD specifications and Visual Design Guidelines",
-                   style={"fontSize": "0.72rem", "color": "#475569", "textAlign": "center", "margin": "16px 0 20px"}),
-        ]),
-
-    ], fluid=True, style={"maxWidth": "1720px", "padding": "0 14px"})
+                    ]),
+                    wide=True,
+                    action=dbc.RadioItems(
+                        id="map-basemap",
+                        options=[
+                            {"label": "ดาวเทียม", "value": "satellite"},
+                            {"label": "มืด", "value": "carto-darkmatter"},
+                            {"label": "ถนน", "value": "open-street-map"},
+                        ],
+                        value="satellite",
+                        inline=True,
+                        className="map-basemap-options",
+                    ),
+                ),
+                chart_card(
+                    "ระดับความเชื่อมั่น (คลิกวงแหวนเพื่อกรอง)",
+                    dcc.Graph(id="chart-conf-donut", style={"height": "240px"}),
+                ),
+                chart_card(
+                    "จุดความร้อนแยกตามประเภทป่า (คลิกแท่งเพื่อกรอง)",
+                    dcc.Graph(id="chart-pa-treemap", style={"height": "240px"}),
+                ),
+            ], "section-where"),
+            question_section("3", "ข้อมูลพื้นที่ทุเรียนและจุดความร้อน", "answer-durian", [
+                chart_card(
+                    "ค่าเฉลี่ยจุดความร้อนตามกลุ่มพื้นที่ทุเรียน",
+                    dcc.Graph(id="chart-simple-comparison", style={"height": "250px"}),
+                ),
+                chart_card("รายละเอียดกลุ่มข้อมูล", html.Div(id="dynamic-context-card")),
+                chart_card(
+                    "ตารางพื้นที่ทุเรียนรายตำบล (คลิกแถวเพื่อกรอง)",
+                    html.Div(id="durian-table-container"),
+                    wide=True,
+                ),
+            ], "section-durian", disclaimer=CAUSAL_DISCLAIMER),
+            question_section("4", "แนวโน้มข้อมูลตามช่วงเวลา", "answer-trends", [
+                chart_card(
+                    "พื้นที่ปลูกทุเรียนรายปี",
+                    dcc.Graph(id="chart-durian-trend", style={"height": "300px"}),
+                    wide=True,
+                ),
+            ], "section-trends"),
+        ], className="question-grid"),
+        html.Footer("หอดูดาวข้อมูลจังหวัดกาญจนบุรี", className="page-footer"),
+    ], className="dashboard-shell"),
 ])
-
-
 # ─── Master Cross-Filtering Dispatcher Callback ───────────────
 @app.callback(
     Output("cross-filter-store", "data"),
@@ -801,6 +450,30 @@ def handle_all_cross_filters(n_reset, map_click, tbl_child, conf_click, pa_click
     return state, state.get("amphoe"), state.get("pa"), state.get("conf")
 
 
+@app.callback(
+    Output("filter-year", "value"),
+    Output("filter-year-start", "value"),
+    Output("filter-year-end", "value"),
+    Input("filter-year", "value"),
+    Input("filter-year-start", "value"),
+    Input("filter-year-end", "value"),
+    prevent_initial_call=True,
+)
+def sync_year_controls(year_range, start_year, end_year):
+    if ctx.triggered_id == "filter-year":
+        return dash.no_update, int(year_range[0]), int(year_range[1])
+
+    if start_year is None or end_year is None:
+        return dash.no_update, dash.no_update, dash.no_update
+
+    start_year = max(year_ce_min, min(year_ce_max, int(start_year)))
+    end_year = max(year_ce_min, min(year_ce_max, int(end_year)))
+    start_year, end_year = sorted((start_year, end_year))
+    if list(year_range) == [start_year, end_year]:
+        return dash.no_update, start_year, end_year
+    return [start_year, end_year], start_year, end_year
+
+
 # ─── Table Row Selection Callback ──────────────────────────────
 @app.callback(
     Output("cross-filter-store", "data", allow_duplicate=True),
@@ -857,16 +530,20 @@ def render_filter_pills(store, year_range):
 
 # ─── Master Unified Visualizations Callback ────────────────────
 @app.callback(
-    Output("header-hotspot-val",      "children"),
-    Output("header-durian-val",       "children"),
     Output("integrity-warning",       "children"),
     Output("integrity-warning",       "is_open"),
     Output("kpi-hotspot-value",       "children"),
     Output("kpi-hotspot-delta",       "children"),
     Output("kpi-durian-value",        "children"),
     Output("kpi-durian-meta",         "children"),
+    Output("kpi-selected-area",       "children"),
     Output("kpi-quality-value",       "children"),
     Output("kpi-quality-meta",        "children"),
+    Output("key-insights",            "children"),
+    Output("answer-when",             "children"),
+    Output("answer-where",            "children"),
+    Output("answer-durian",           "children"),
+    Output("answer-trends",           "children"),
     Output("top-hours-list",          "children"),
     Output("chart-activity",          "figure"),
     Output("chart-seasonality",       "figure"),
@@ -899,7 +576,7 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
         d = dict(
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
-            font=dict(color="#E2E8F0", family="Sarabun, Inter", size=10),
+            font=dict(color="#E2E8F0", family="Sarabun, Inter", size=12),
             margin=m if m is not None else dict(l=25, r=15, t=25, b=25),
         )
         d.update(kwargs)
@@ -927,16 +604,77 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
     cur_durian_rai = metrics["durian_total"]
     yoy = metrics["yoy"]
     quality_pct = metrics["quality_pct"]
-    # Header and cards use exactly the same calculated values.
-    header_hotspot_text = f"{cur_hotspots:,}"
     durian_display = "⬜ Missing" if cur_durian_rai is None else f"{cur_durian_rai:,.1f} ไร่"
-    header_durian_text = durian_display
     kpi_hotspot_value = f"{cur_hotspots:,} จุด"
     kpi_hotspot_delta = "ไม่มีข้อมูลปีก่อนหน้า" if yoy is None else f"เทียบปีก่อนหน้า: {yoy:+.1f}%"
     kpi_durian_value = durian_display
     kpi_durian_meta = f"พ.ศ. {metrics['durian_year']}"
+    if t_filter and a_filter:
+        kpi_selected_area = f"ต. {t_filter} · อ. {a_filter}"
+    elif t_filter:
+        kpi_selected_area = f"ตำบล {t_filter}"
+    elif a_filter:
+        kpi_selected_area = f"อำเภอ {a_filter}"
+    else:
+        kpi_selected_area = "จังหวัดกาญจนบุรี"
     kpi_quality_value = f"{quality_pct:.1f}%"
     kpi_quality_meta = f"High/Nominal {metrics['quality_count']:,} จาก {cur_hotspots:,} จุด"
+
+    if df_h.empty:
+        answer_when = "ไม่พบข้อมูลจุดความร้อนในช่วงตัวกรองที่เลือก"
+        answer_where = answer_when
+        empty_insights = [
+            answer_when,
+            "ไม่สามารถคำนวณเดือนที่พบจุดความร้อนมากที่สุด",
+            "ไม่สามารถคำนวณตำบลที่มีจุดความร้อนมากที่สุด",
+        ]
+        key_insights = [
+            html.P([
+                html.Span(f"{index:02d}", className="insight-number"),
+                html.Span(insight),
+            ], className="insight-item")
+            for index, insight in enumerate(empty_insights, start=1)
+        ]
+    else:
+        peak_month = int(df_h["month"].value_counts().idxmax())
+        peak_month_count = int(df_h["month"].value_counts().max())
+        peak_month_share = peak_month_count / len(df_h) * 100
+        peak_month_name = MONTH_LABELS[peak_month]
+        answer_when = (
+            f"เดือน {peak_month_name} มีจุดความร้อนมากที่สุด "
+            f"{peak_month_count:,} จุด ({peak_month_share:.1f}%)"
+        )
+        top_tambon = (
+            df_h.groupby(["อำเภอ_norm", "ตำบล_norm"])
+            .size()
+            .sort_values(ascending=False)
+        )
+        (top_amphoe, top_tambon_name), top_tambon_count = top_tambon.index[0], int(top_tambon.iloc[0])
+        answer_where = (
+            f"ตำบล {top_tambon_name} อำเภอ {top_amphoe} มีจุดความร้อน "
+            f"มากที่สุด {top_tambon_count:,} จุด"
+        )
+        peak_hour_counts = df_h["hour_of_day"].value_counts()
+        peak_hour = int(peak_hour_counts.idxmax())
+        peak_hour_count = int(peak_hour_counts.max())
+        peak_hour_share = peak_hour_count / len(df_h) * 100
+        key_insights = [
+            html.P([
+                html.Span("01", className="insight-number"),
+                html.Span(f"เดือนสูงสุด: {peak_month_name} ({peak_month_share:.1f}%)"),
+            ], className="insight-item"),
+            html.P([
+                html.Span("02", className="insight-number"),
+                html.Span(f"ตำบลที่มีจำนวนสูงสุด: {top_tambon_name} ({top_tambon_count:,} จุด)"),
+            ], className="insight-item"),
+            html.P([
+                html.Span("03", className="insight-number"),
+                html.Span(f"ชั่วโมงสูงสุด: {peak_hour:02d}:00–{peak_hour:02d}:59 ({peak_hour_share:.1f}%)"),
+            ], className="insight-item"),
+        ]
+    answer_trends = (
+        f"พื้นที่ทุเรียนสำหรับ พ.ศ. {metrics['durian_year']}: {durian_display}"
+    )
 
     # ── 5. Most Active Hours List (styled like SAS Viya left list) ─
     top_hours = df_h.groupby("hour_of_day").size().reset_index(name="count").sort_values("count", ascending=False).head(5)
@@ -977,7 +715,7 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
         **get_theme(
             m=dict(l=35, r=10, t=15, b=25),
             barmode="group",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=9)),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=12)),
         )
     )
     fig_activity.update_xaxes(gridcolor="#1E293B")
@@ -1019,8 +757,8 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
         **get_theme(
             m=dict(l=10, r=10, t=10, b=10),
             showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5, font=dict(size=9)),
-            annotations=[dict(text=f"<b>{center_text}</b><br><span style='font-size:9px'>TOTAL</span>",
+            legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5, font=dict(size=12)),
+            annotations=[dict(text=f"<b>{center_text}</b><br><span style='font-size:12px'>TOTAL</span>",
                               x=0.5, y=0.5, font_size=16, font_color="#FFFFFF", showarrow=False)]
         )
     )
@@ -1039,7 +777,7 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
         )
         fig_treemap.update_traces(
             textposition="inside",
-            textfont=dict(color="#FFFFFF", size=10, family="Sarabun", weight="bold")
+            textfont=dict(color="#FFFFFF", size=12, family="Sarabun", weight="bold")
         )
         fig_treemap.update_layout(
             **get_theme(m=dict(l=110, r=10, t=10, b=20), showlegend=False),
@@ -1058,6 +796,23 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
     if t_filter:
         joined_active = joined_active[joined_active["ตำบล_norm"] == t_filter]
 
+    selected_event_counts = (
+        df_h.assign(**{"พ.ศ.": df_h["date_parsed"].dt.year + 543})
+        .groupby(["อำเภอ_norm", "ตำบล_norm", "พ.ศ."])
+        .size()
+        .rename("selected_hotspot_count")
+        .reset_index()
+    )
+    joined_active = joined_active.merge(
+        selected_event_counts,
+        on=["อำเภอ_norm", "ตำบล_norm", "พ.ศ."],
+        how="left",
+        validate="one_to_one",
+    )
+    joined_active["hotspot_count"] = (
+        joined_active["selected_hotspot_count"].fillna(0).astype(int)
+    )
+
     group_has = joined_active[joined_active["durian_area_rai"] > 0]
     group_no  = joined_active[joined_active["durian_area_rai"] == 0]
     group_missing = joined_active[joined_active["durian_area_rai"].isna()]
@@ -1069,27 +824,62 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
     avg_no  = group_no["hotspot_count"].mean() if n_no > 0 else 0.0
     sum_has = group_has["hotspot_count"].sum()
     sum_no  = group_no["hotspot_count"].sum()
-
-    comp_df = pd.DataFrame({
-        "กลุ่ม": [f"ปลูกทุเรียน (>0 ไร่)<br>(n={n_has})", f"ไม่ปลูก (0 ไร่)<br>(n={n_no})"],
-        "ค่าเฉลี่ย": [avg_has, avg_no],
-        "จำนวน": [n_has, n_no]
-    })
-    fig_comp = px.bar(
-        comp_df, x="กลุ่ม", y="ค่าเฉลี่ย",
-        color="กลุ่ม",
-        text=comp_df.apply(lambda r: f"{r['ค่าเฉลี่ย']:.1f} จุด (n={r['จำนวน']})", axis=1),
-        color_discrete_sequence=["#84CC16", "#64748B"],
-    )
-    fig_comp.update_traces(textposition="outside", textfont=dict(size=11, color="#F8FAFC"))
-    fig_comp.update_layout(
-        **get_theme(
-            m=dict(l=30, r=10, t=25, b=30),
-            showlegend=False,
+    if n_has and n_no:
+        answer_durian = (
+            f"ค่าเฉลี่ยจุดความร้อนในระเบียนพื้นที่ทุเรียนมากกว่า 0.0 ไร่ "
+            f"คือ {avg_has:.1f} จุด (n={n_has:,}); ระเบียน 0.0 ไร่ "
+            f"คือ {avg_no:.1f} จุด (n={n_no:,})"
         )
-    )
-    fig_comp.update_yaxes(gridcolor="#1E293B")
-    fig_comp.update_xaxes(gridcolor="#1E293B")
+    elif n_has:
+        answer_durian = f"ระเบียนพื้นที่ทุเรียนมากกว่า 0.0 ไร่มีค่าเฉลี่ย {avg_has:.1f} จุด (n={n_has:,})"
+    elif n_no:
+        answer_durian = f"ระเบียนพื้นที่ทุเรียน 0.0 ไร่มีค่าเฉลี่ย {avg_no:.1f} จุด (n={n_no:,})"
+    elif n_missing:
+        answer_durian = (
+            f"พบระเบียนพื้นที่ทุเรียนที่ไม่มีค่า {n_missing:,} ตำบล-ปี "
+            "และไม่มีระเบียนพื้นที่ตัวเลขให้เปรียบเทียบ"
+        )
+    else:
+        answer_durian = "ไม่พบระเบียนพื้นที่ทุเรียนในช่วงตัวกรองที่เลือก"
+
+    comp_rows = []
+    if n_has:
+        comp_rows.append({
+            "กลุ่ม": f"ปลูกทุเรียน (>0 ไร่)<br>(n={n_has})",
+            "ค่าเฉลี่ย": avg_has,
+            "จำนวน": n_has,
+        })
+    if n_no:
+        comp_rows.append({
+            "กลุ่ม": f"ไม่ปลูก (0 ไร่)<br>(n={n_no})",
+            "ค่าเฉลี่ย": avg_no,
+            "จำนวน": n_no,
+        })
+    if comp_rows:
+        comp_df = pd.DataFrame(comp_rows)
+        fig_comp = px.bar(
+            comp_df, x="กลุ่ม", y="ค่าเฉลี่ย",
+            color="กลุ่ม",
+            text=comp_df.apply(lambda r: f"{r['ค่าเฉลี่ย']:.1f} จุด (n={r['จำนวน']})", axis=1),
+            color_discrete_sequence=["#84CC16", "#64748B"],
+        )
+        fig_comp.update_traces(textposition="outside", textfont=dict(size=12, color="#F8FAFC"))
+        fig_comp.update_layout(
+            **get_theme(
+                m=dict(l=30, r=10, t=25, b=30),
+                showlegend=False,
+            )
+        )
+        fig_comp.update_yaxes(gridcolor="#1E293B")
+        fig_comp.update_xaxes(gridcolor="#1E293B")
+    else:
+        fig_comp = go.Figure()
+        fig_comp.add_annotation(
+            text="ไม่พบข้อมูลพื้นที่ทุเรียนในช่วงตัวกรองที่เลือก",
+            showarrow=False,
+            font=dict(size=12, color="#94A3B8"),
+        )
+        fig_comp.update_layout(**get_theme())
 
     # ── 10. Dynamic Insight Callout Box (styled like SAS Viya '?')
     years_label = f"พ.ศ. {active_be_years[0]}–{active_be_years[-1]}" if len(active_be_years) > 1 else f"พ.ศ. {active_be_years[0]}"
@@ -1115,7 +905,6 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
                 style={"color": "#94A3B8", "lineHeight": "1.4", "display": "block"}
             )
         ], style={"backgroundColor": "#0E1624", "padding": "6px 8px", "borderRadius": "4px", "borderLeft": "3px solid #F59E0B"}),
-        html.Small(CAUSAL_DISCLAIMER, style={"color": "#FCD34D", "lineHeight": "1.4"}),
     ])
 
     # ── 11. Spatial Map (Satellite / Dark Matter) ───────────────
@@ -1158,7 +947,7 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
                 yanchor="bottom", y=0.01,
                 xanchor="right", x=0.99,
                 bgcolor="rgba(10, 14, 23, 0.85)",
-                font=dict(size=9, color="#FFFFFF")
+                font=dict(size=12, color="#FFFFFF")
             )
         )
 
@@ -1166,8 +955,20 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
     tbl_group = df_d.groupby(["อำเภอ_norm", "ตำบล_norm"]).agg(
         avg_rai=("durian_area_rai", "mean"),
         latest_rai=("durian_area_rai", lambda x: x.iloc[-1] if len(x)>0 else np.nan),
-        total_hotspots=("hotspot_count", "sum")
     ).reset_index()
+    table_hotspot_counts = (
+        df_h.groupby(["อำเภอ_norm", "ตำบล_norm"])
+        .size()
+        .rename("total_hotspots")
+        .reset_index()
+    )
+    tbl_group = tbl_group.merge(
+        table_hotspot_counts,
+        on=["อำเภอ_norm", "ตำบล_norm"],
+        how="left",
+        validate="one_to_one",
+    )
+    tbl_group["total_hotspots"] = tbl_group["total_hotspots"].fillna(0).astype(int)
 
     tbl_group = tbl_group.sort_values("latest_rai", ascending=False).reset_index(drop=True)
     tbl_group.insert(0, "อันดับ", tbl_group.index + 1)
@@ -1273,23 +1074,27 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
     fig_durian_line.update_layout(
         **get_theme(
             m=dict(l=35, r=10, t=25, b=20),
-            title=dict(text=tr_title, font=dict(size=10, color="#94A3B8"))
+            title=dict(text=tr_title, font=dict(size=12, color="#94A3B8"))
         )
     )
     fig_durian_line.update_xaxes(tickmode="linear", tick0=2561, dtick=1, gridcolor="#1E293B")
     fig_durian_line.update_yaxes(gridcolor="#1E293B")
 
     return (
-        header_hotspot_text,
-        header_durian_text,
         integrity_warning,
         integrity_warning_open,
         kpi_hotspot_value,
         kpi_hotspot_delta,
         kpi_durian_value,
         kpi_durian_meta,
+        kpi_selected_area,
         kpi_quality_value,
         kpi_quality_meta,
+        key_insights,
+        answer_when,
+        answer_where,
+        answer_durian,
+        answer_trends,
         hours_items,
         fig_activity,
         fig_seasonality,
