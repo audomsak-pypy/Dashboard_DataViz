@@ -70,6 +70,8 @@ def filter_dashboard_data(filter_state, year_range):
         events = events[events["ประเภทป่าอนุรักษ์"] == state["pa"]]
     if state.get("month"):
         events = events[events["month"] == state["month"]]
+    if state.get("hour") is not None:
+        events = events[events["hour_of_day"] == state["hour"]]
     if state.get("season"):
         dry_months = {11, 12, 1, 2, 3, 4}
         if state["season"] == "dry":
@@ -102,6 +104,10 @@ def compute_kpis(filter_state, year_range):
         comparison_events = comparison_events[comparison_events["ประเภทป่าอนุรักษ์"] == state["pa"]]
     if state.get("month"):
         comparison_events = comparison_events[comparison_events["month"] == state["month"]]
+    if state.get("hour") is not None:
+        comparison_events = comparison_events[
+            comparison_events["hour_of_day"] == state["hour"]
+        ]
     if state.get("season"):
         dry_months = {11, 12, 1, 2, 3, 4}
         if state["season"] == "dry":
@@ -184,6 +190,7 @@ app.layout = html.Div([
             "pa": None,
             "month": None,
             "season": None,
+            "hour": None,
         }
     ),
     html.Header([
@@ -303,8 +310,13 @@ app.layout = html.Div([
             question_section("1", "จุดความร้อนเกิดขึ้นเมื่อไร?", "answer-when", [
                 chart_card("ช่วงเวลาที่พบจุดความร้อนมาก", html.Div(id="top-hours-list")),
                 chart_card(
-                    "รูปแบบจุดความร้อนรายเดือน (คลิกแท่งเพื่อกรอง)",
-                    dcc.Graph(id="chart-activity", style={"height": "290px"}),
+                    "จุดความร้อนรายเดือนแยกปี (คลิกแท่งเพื่อกรองเดือนและปี)",
+                    dcc.Graph(id="chart-activity", style={"height": "330px"}),
+                    wide=True,
+                ),
+                chart_card(
+                    "จุดความร้อนตามเดือนและชั่วโมง (คลิกช่องเพื่อกรอง)",
+                    dcc.Graph(id="chart-hour-month", style={"height": "330px"}),
                     wide=True,
                 ),
                 chart_card(
@@ -381,13 +393,13 @@ app.layout = html.Div([
             ], "section-where"),
             question_section("3", "ข้อมูลพื้นที่ทุเรียนและจุดความร้อน", "answer-durian", [
                 chart_card(
-                    "ค่าเฉลี่ยจุดความร้อนตามกลุ่มพื้นที่ทุเรียน",
+                    "การกระจายจำนวนจุดความร้อนตามกลุ่มพื้นที่ทุเรียน",
                     comparison_with_disclaimer(
                         dcc.Graph(id="chart-simple-comparison", style={"height": "250px"})
                     ),
                 ),
                 chart_card(
-                    "พื้นที่ทุเรียนและจุดความร้อนรายตำบล (คลิกจุดเพื่อเลือกตำบล)",
+                    "พื้นที่ทุเรียนและจุดความร้อนรายตำบล-ปี (คลิกจุดเพื่อกรอง)",
                     comparison_with_disclaimer(
                         dcc.Graph(id="chart-durian-hotspots", style={"height": "330px"})
                     ),
@@ -405,7 +417,7 @@ app.layout = html.Div([
             ], "section-durian"),
             question_section("4", "แนวโน้มข้อมูลตามช่วงเวลา", "answer-trends", [
                 chart_card(
-                    "พื้นที่ปลูกทุเรียนรายปี (คลิกจุดเพื่อเลือกปี)",
+                    "พื้นที่ปลูกทุเรียนรายปี (แสดงเฉพาะปีที่มีข้อมูล)",
                     dcc.Graph(id="chart-durian-trend", style={"height": "300px"}),
                     wide=True,
                 ),
@@ -431,7 +443,9 @@ app.layout = html.Div([
     Input("chart-conf-donut", "clickData"),
     Input("chart-pa-treemap", "clickData"),
     Input("chart-activity", "clickData"),
+    Input("chart-hour-month", "clickData"),
     Input("chart-seasonality", "clickData"),
+    Input("chart-simple-comparison", "clickData"),
     Input("chart-top-tambon", "clickData"),
     Input("chart-recurrence", "clickData"),
     Input("chart-district-forest", "clickData"),
@@ -442,16 +456,23 @@ app.layout = html.Div([
     State("cross-filter-store", "data"),
     prevent_initial_call=True,
 )
-def handle_all_cross_filters(n_reset, map_click, tbl_child, conf_click, pa_click, act_click, season_click,
+def handle_all_cross_filters(n_reset, map_click, tbl_child, conf_click, pa_click, act_click,
+                             hour_month_click, season_click, comparison_click,
                              top_tambon_click, recurrence_click, district_forest_click,
                              durian_hotspot_click,
                              amphoe_dd, pa_dd, conf_dd, current_store):
     trigger = ctx.triggered_id
-    state = dict(current_store) if current_store else {"tambon": None, "amphoe": None, "conf": None, "pa": None, "month": None, "season": None}
+    state = dict(current_store) if current_store else {
+        "tambon": None, "amphoe": None, "conf": None, "pa": None,
+        "month": None, "season": None, "hour": None,
+    }
 
     # 1. Reset Button Clicked
     if trigger == "btn-reset":
-        return {"tambon": None, "amphoe": None, "conf": None, "pa": None, "month": None, "season": None}, None, None, None
+        return {
+            "tambon": None, "amphoe": None, "conf": None, "pa": None,
+            "month": None, "season": None, "hour": None,
+        }, None, None, None
 
     # 2. Map point clicked
     if trigger == "spatial-map" and map_click:
@@ -487,29 +508,46 @@ def handle_all_cross_filters(n_reset, map_click, tbl_child, conf_click, pa_click
         try:
             pt = act_click["points"][0]
             m_label = pt.get("x")
-            # Reverse map label to month int
             rev_map = {v: k for k, v in MONTH_LABELS.items()}
             m_val = rev_map.get(m_label)
             if m_val:
                 state["month"] = None if state.get("month") == m_val else m_val
+                state["hour"] = None
+                state["season"] = None
         except Exception:
             pass
 
-    # 6. Seasonality chart clicked
+    # 6. Month/hour heatmap clicked
+    if trigger == "chart-hour-month" and hour_month_click:
+        point = (hour_month_click.get("points") or [None])[0]
+        if point:
+            month = {label: value for value, label in MONTH_LABELS.items()}.get(
+                point.get("y")
+            )
+            hour = point.get("x")
+            if month and isinstance(hour, (int, float)):
+                state["month"] = month
+                state["hour"] = int(hour)
+                state["season"] = None
+
+    # 7. Seasonality chart clicked
     if trigger == "chart-seasonality" and season_click:
         try:
             label = season_click["points"][0].get("x") or season_click["points"][0].get("label")
             season = {"ฤดูแล้ง (พ.ย.–เม.ย.)": "dry", "ฤดูฝน (พ.ค.–ต.ค.)": "rainy"}.get(label)
             if season:
                 state["season"] = None if state.get("season") == season else season
+                state["month"] = None
+                state["hour"] = None
         except Exception:
             pass
 
-    # 7. Tambon count and recurrence charts
+    # 8. Tambon count and recurrence charts
     area_clicks = {
         "chart-top-tambon": top_tambon_click,
         "chart-recurrence": recurrence_click,
         "chart-durian-hotspots": durian_hotspot_click,
+        "chart-simple-comparison": comparison_click,
     }
     if trigger in area_clicks and area_clicks[trigger]:
         point = (area_clicks[trigger].get("points") or [None])[0]
@@ -517,7 +555,7 @@ def handle_all_cross_filters(n_reset, map_click, tbl_child, conf_click, pa_click
         if custom_data and len(custom_data) >= 2:
             state["amphoe"], state["tambon"] = custom_data[0], custom_data[1]
 
-    # 8. District and forest type stacked bar
+    # 9. District and forest type stacked bar
     if trigger == "chart-district-forest" and district_forest_click:
         point = (district_forest_click.get("points") or [None])[0]
         custom_data = point.get("customdata") if point else None
@@ -525,7 +563,7 @@ def handle_all_cross_filters(n_reset, map_click, tbl_child, conf_click, pa_click
             state["amphoe"], state["pa"] = custom_data[0], custom_data[1]
             state["tambon"] = None
 
-    # 9. Dropdown inputs
+    # 10. Dropdown inputs
     if trigger == "filter-amphoe":
         state["amphoe"] = amphoe_dd
     if trigger == "filter-pa":
@@ -543,20 +581,39 @@ def handle_all_cross_filters(n_reset, map_click, tbl_child, conf_click, pa_click
     Input("filter-year", "value"),
     Input("filter-year-start", "value"),
     Input("filter-year-end", "value"),
-    Input("chart-durian-trend", "clickData"),
+    Input("chart-activity", "clickData"),
+    Input("chart-simple-comparison", "clickData"),
+    Input("chart-durian-hotspots", "clickData"),
     prevent_initial_call=True,
 )
-def sync_year_controls(year_range, start_year, end_year, trend_click):
+def sync_year_controls(year_range, start_year, end_year, activity_click,
+                       box_click, scatter_click):
     if ctx.triggered_id == "filter-year":
         return dash.no_update, int(year_range[0]), int(year_range[1])
 
-    if ctx.triggered_id == "chart-durian-trend":
-        points = (trend_click or {}).get("points") or []
-        point_year = points[0].get("x") if points else None
-        if isinstance(point_year, (int, float, np.integer, np.floating)):
-            selected_year = int(point_year) - 543
-            if year_ce_min <= selected_year <= year_ce_max:
-                return [selected_year, selected_year], selected_year, selected_year
+    if ctx.triggered_id in {"chart-activity", "chart-simple-comparison", "chart-durian-hotspots"}:
+        click_data = {
+            "chart-activity": activity_click,
+            "chart-simple-comparison": box_click,
+            "chart-durian-hotspots": scatter_click,
+        }.get(ctx.triggered_id)
+        points = (click_data or {}).get("points") or []
+        point = points[0] if points else {}
+        custom_data = point.get("customdata") or []
+        if ctx.triggered_id == "chart-activity":
+            clicked_year = custom_data[0] if custom_data else None
+            selected_year = int(clicked_year) if isinstance(
+                clicked_year, (int, float, np.integer, np.floating)
+            ) else None
+        else:
+            clicked_be_year = custom_data[2] if len(custom_data) >= 3 else None
+            selected_year = (
+                int(clicked_be_year) - 543
+                if isinstance(clicked_be_year, (int, float, np.integer, np.floating))
+                else None
+            )
+        if selected_year is not None and year_ce_min <= selected_year <= year_ce_max:
+            return [selected_year, selected_year], selected_year, selected_year
         return dash.no_update, dash.no_update, dash.no_update
 
     if start_year is None or end_year is None:
@@ -615,6 +672,10 @@ def render_filter_pills(store, year_range):
     if store.get("month"):
         m_name = MONTH_LABELS.get(store["month"], str(store["month"]))
         pills.append(html.Span(["📅 เดือน: ", html.Strong(m_name)], className="filter-pill"))
+    if store.get("hour") is not None:
+        pills.append(html.Span([
+            "🕒 ชั่วโมง: ", html.Strong(f"{int(store['hour']):02d}:00–{int(store['hour']):02d}:59")
+        ], className="filter-pill"))
     if store.get("season"):
         season_name = "ฤดูแล้ง" if store["season"] == "dry" else "ฤดูฝน"
         pills.append(html.Span(["🌦️ ฤดูกาล: ", html.Strong(season_name)], className="filter-pill"))
@@ -642,6 +703,7 @@ def render_filter_pills(store, year_range):
     Output("answer-trends",           "children"),
     Output("top-hours-list",          "children"),
     Output("chart-activity",          "figure"),
+    Output("chart-hour-month",        "figure"),
     Output("chart-seasonality",       "figure"),
     Output("chart-conf-donut",        "figure"),
     Output("chart-pa-treemap",        "figure"),
@@ -803,34 +865,107 @@ def update_entire_dashboard(filter_state, year_range, map_basemap, map_mode):
         hours_items = [html.P("ไม่พบข้อมูลชั่วโมง", style={"fontSize": "0.75rem", "color": "#64748B"})]
 
     # ── 6. Monthly fire activity by year ───────────────────────
-    m_counts = df_h.assign(year=df_h["date_parsed"].dt.year).groupby(["year", "month"]).size().reset_index(name="count")
-    fig_activity = go.Figure()
-    month_order = list(range(1, 13))
-    total_by_month = m_counts.groupby("month")["count"].sum().reindex(month_order, fill_value=0)
-    fig_activity.add_trace(go.Bar(
-        x=[MONTH_LABELS[m] for m in month_order], y=total_by_month,
-        name="รวม", marker=dict(color="#D9531E", opacity=0.36),
-        hovertemplate="%{x}<br>รวม %{y:,} จุด<extra></extra>",
-    ))
-    line_colors = ["#FDE68A", "#38BDF8", "#F87171", "#C4B5FD"]
-    for index, year in enumerate(sorted(m_counts["year"].unique())):
-        yearly = m_counts[m_counts["year"] == year].set_index("month")["count"].reindex(month_order, fill_value=0)
-        fig_activity.add_trace(go.Scatter(
-            x=[MONTH_LABELS[m] for m in month_order], y=yearly,
-            name=f"พ.ศ. {year + 543}", mode="lines+markers",
-            line=dict(color=line_colors[index % len(line_colors)], width=2.2),
-            marker=dict(size=5),
-            hovertemplate=f"พ.ศ. {year + 543}<br>%{{x}}: %{{y:,}} จุด<extra></extra>",
-        ))
-    fig_activity.update_layout(
-        **get_theme(
-            m=dict(l=35, r=10, t=15, b=25),
-            barmode="group",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=12)),
-        )
+    monthly_events = df_h.assign(year=df_h["date_parsed"].dt.year)
+    m_counts = (
+        monthly_events.groupby(["year", "month"])
+        .size()
+        .rename("count")
+        .reset_index()
     )
-    fig_activity.update_xaxes(gridcolor="#1E293B")
-    fig_activity.update_yaxes(gridcolor="#1E293B")
+    if not m_counts.empty:
+        year_coverage = monthly_events.groupby("year").agg(
+            reporting_days=("date_parsed", lambda dates: dates.dt.normalize().nunique()),
+            covered_months=("month", "nunique"),
+        )
+        observed_months = sorted(int(month) for month in m_counts["month"].unique())
+        fig_activity = go.Figure()
+        for index, year in enumerate(sorted(m_counts["year"].unique())):
+            yearly = (
+                m_counts[m_counts["year"] == year]
+                .set_index("month")
+                .reindex(observed_months)
+            )
+            coverage = year_coverage.loc[year]
+            yearly_pct = yearly["count"] / int(yearly["count"].sum()) * 100
+            customdata = np.column_stack([
+                np.full(len(observed_months), int(year)),
+                yearly_pct.to_numpy(),
+                np.full(len(observed_months), int(coverage["reporting_days"])),
+                np.full(len(observed_months), int(coverage["covered_months"])),
+            ])
+            fig_activity.add_trace(go.Bar(
+                x=[MONTH_LABELS[month] for month in observed_months],
+                y=yearly["count"].to_numpy(),
+                name=f"พ.ศ. {int(year) + 543}",
+                customdata=customdata,
+                marker_color=px.colors.qualitative.Safe[index % len(px.colors.qualitative.Safe)],
+                hovertemplate=(
+                    "พ.ศ. %{customdata[0]:.0f}<br>%{x}: %{y:,.0f} จุด"
+                    "<br>สัดส่วนของจุดในปีนั้น: %{customdata[1]:.1f}%"
+                    "<br>วันที่มีรายงาน: %{customdata[2]:.0f} วัน"
+                    "<br>เดือนที่มีข้อมูล: %{customdata[3]:.0f} เดือน<extra></extra>"
+                ),
+            ))
+        coverage_note = " · ".join(
+            f"พ.ศ. {int(year) + 543}: {int(row['covered_months'])} เดือน/"
+            f"{int(row['reporting_days'])} วัน"
+            for year, row in year_coverage.iterrows()
+        )
+        fig_activity.update_layout(
+            **get_theme(
+                m=dict(l=35, r=10, t=55, b=75),
+                barmode="group",
+                title=dict(
+                    text="ข้อมูลที่เลือกครอบคลุม: " + coverage_note,
+                    font=dict(size=11, color="#94A3B8"),
+                ),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=12)),
+            )
+        )
+        fig_activity.update_xaxes(
+            categoryorder="array",
+            categoryarray=[MONTH_LABELS[month] for month in observed_months],
+            gridcolor="#1E293B",
+        )
+        fig_activity.update_yaxes(gridcolor="#1E293B", title="จุดความร้อนที่ตรวจพบ")
+    else:
+        fig_activity = empty_chart("ไม่พบข้อมูลรายเดือนในช่วงตัวกรองที่เลือก")
+
+    # ── 6a. Monthly/hourly heatmap ─────────────────────────────
+    hour_counts = (
+        df_h.groupby(["month", "hour_of_day"])
+        .size()
+        .rename("count")
+        .reset_index()
+    )
+    if not hour_counts.empty:
+        months_with_events = sorted(int(month) for month in hour_counts["month"].unique())
+        hour_matrix = (
+            hour_counts.pivot(index="month", columns="hour_of_day", values="count")
+            .reindex(index=months_with_events, columns=range(24))
+            .fillna(0)
+        )
+        fig_hour_month = go.Figure(go.Heatmap(
+            z=hour_matrix.to_numpy(),
+            x=list(range(24)),
+            y=[MONTH_LABELS[month] for month in months_with_events],
+            colorscale="YlOrRd",
+            customdata=hour_matrix.to_numpy(),
+            colorbar=dict(title="จุด", tickfont=dict(color="#E2E8F0")),
+            hovertemplate="%{y} %{x:02d}:00–%{x:02d}:59<br>%{z:,} จุด<extra></extra>",
+        ))
+        fig_hour_month.update_layout(
+            **get_theme(m=dict(l=55, r=20, t=15, b=35))
+        )
+        fig_hour_month.update_xaxes(
+            tickmode="array",
+            tickvals=list(range(24)),
+            ticktext=[f"{hour:02d}" for hour in range(24)],
+            title="ชั่วโมง",
+        )
+        fig_hour_month.update_yaxes(title="เดือน")
+    else:
+        fig_hour_month = empty_chart("ไม่พบข้อมูลเดือนและชั่วโมงในช่วงตัวกรองที่เลือก")
 
     # ── 7. Seasonality indicator ───────────────────────────────
     dry_months = {11, 12, 1, 2, 3, 4}
@@ -881,20 +1016,33 @@ def update_entire_dashboard(filter_state, year_range, map_basemap, map_mode):
     )
 
     # ── 8. Forest Cover Horizontal Bar (Land Cover Breakdown) ─────────
-    pa_dist = df_h.groupby("ประเภทป่าอนุรักษ์").size().reset_index(name="count").sort_values("count", ascending=True)
+    pa_dist = (
+        df_h.groupby("ประเภทป่าอนุรักษ์")
+        .size()
+        .reset_index(name="count")
+        .sort_values("count", ascending=True)
+    )
     if len(pa_dist) > 0:
+        pa_dist["share_pct"] = pa_dist["count"] / pa_dist["count"].sum() * 100
         fig_treemap = px.bar(
             pa_dist,
             x="count",
             y="ประเภทป่าอนุรักษ์",
             orientation="h",
-            text=pa_dist["count"].apply(lambda v: f"{v:,} จุด"),
+            text=pa_dist.apply(
+                lambda row: f"{row['count']:,} จุด ({row['share_pct']:.1f}%)",
+                axis=1,
+            ),
+            custom_data=["share_pct"],
             color="count",
             color_continuous_scale="Oranges",
         )
         fig_treemap.update_traces(
             textposition="inside",
-            textfont=dict(color="#FFFFFF", size=12, family="Sarabun", weight="bold")
+            textfont=dict(color="#FFFFFF", size=12, family="Sarabun", weight="bold"),
+            hovertemplate=(
+                "%{y}<br>%{x:,} จุด (%{customdata[0]:.1f}%)<extra></extra>"
+            ),
         )
         fig_treemap.update_layout(
             **get_theme(m=dict(l=110, r=10, t=10, b=20), showlegend=False),
@@ -1043,34 +1191,12 @@ def update_entire_dashboard(filter_state, year_range, map_basemap, map_mode):
     n_has = len(group_has)
     n_no  = len(group_no)
     n_missing = len(group_missing)
-    avg_has = group_has["hotspot_count"].mean() if n_has > 0 else 0.0
-    avg_no  = group_no["hotspot_count"].mean() if n_no > 0 else 0.0
-    sum_has = group_has["hotspot_count"].sum()
-    sum_no  = group_no["hotspot_count"].sum()
+    median_has = group_has["hotspot_count"].median() if n_has else 0.0
+    median_no = group_no["hotspot_count"].median() if n_no else 0.0
+    zero_has = int(group_has["hotspot_count"].eq(0).sum())
+    zero_no = int(group_no["hotspot_count"].eq(0).sum())
 
-    scatter_year = year_range[1] + 543
-    durian_scatter = (
-        df_d[df_d["พ.ศ."] == scatter_year]
-        .groupby(["อำเภอ_norm", "ตำบล_norm"])["durian_area_rai"]
-        .sum(min_count=1)
-        .reset_index()
-    )
-    durian_scatter = durian_scatter[durian_scatter["durian_area_rai"].notna()]
-    scatter_hotspots = (
-        df_h.groupby(["อำเภอ_norm", "ตำบล_norm"])
-        .size()
-        .rename("hotspot_count")
-        .reset_index()
-    )
-    durian_scatter = durian_scatter.merge(
-        scatter_hotspots,
-        on=["อำเภอ_norm", "ตำบล_norm"],
-        how="left",
-        validate="one_to_one",
-    )
-    durian_scatter["hotspot_count"] = (
-        durian_scatter["hotspot_count"].fillna(0).astype(int)
-    )
+    durian_scatter = joined_active[joined_active["durian_area_rai"].notna()].copy()
     if not durian_scatter.empty:
         fig_durian_scatter = px.scatter(
             durian_scatter,
@@ -1078,19 +1204,20 @@ def update_entire_dashboard(filter_state, year_range, map_basemap, map_mode):
             y="hotspot_count",
             color="อำเภอ_norm",
             hover_name="ตำบล_norm",
-            custom_data=["อำเภอ_norm", "ตำบล_norm"],
+            custom_data=["อำเภอ_norm", "ตำบล_norm", "พ.ศ."],
             labels={
                 "durian_area_rai": "พื้นที่ปลูกทุเรียน (ไร่)",
-                "hotspot_count": "จุดความร้อนในช่วงปีที่เลือก",
+                "hotspot_count": "จุดความร้อนที่ตรวจพบ",
                 "อำเภอ_norm": "อำเภอ",
             },
-            title=f"พื้นที่ทุเรียน พ.ศ. {scatter_year} และจุดความร้อนตามตัวกรอง",
+            title="หนึ่งจุดแทนหนึ่งตำบล-ปี",
             color_discrete_sequence=px.colors.qualitative.Bold,
         )
         fig_durian_scatter.update_traces(
             marker=dict(size=10, opacity=0.8, line=dict(width=0.5, color="#E2E8F0")),
             hovertemplate=(
                 "%{hovertext}<br>อำเภอ: %{customdata[0]}"
+                "<br>พ.ศ. %{customdata[2]:.0f}"
                 "<br>พื้นที่ปลูกทุเรียน: %{x:,.1f} ไร่"
                 "<br>จุดความร้อน: %{y:,} จุด<extra></extra>"
             ),
@@ -1105,19 +1232,19 @@ def update_entire_dashboard(filter_state, year_range, map_basemap, map_mode):
         fig_durian_scatter.update_yaxes(gridcolor="#1E293B")
     else:
         fig_durian_scatter = empty_chart(
-            "ไม่พบค่าพื้นที่ทุเรียนที่เป็นตัวเลขสำหรับปีที่เลือก"
+            "ไม่พบค่าพื้นที่ทุเรียนที่เป็นตัวเลขสำหรับช่วงปีที่เลือก"
         )
 
     if n_has and n_no:
         answer_durian = (
-            f"ค่าเฉลี่ยจุดความร้อนในระเบียนพื้นที่ทุเรียนมากกว่า 0.0 ไร่ "
-            f"คือ {avg_has:.1f} จุด (n={n_has:,}); ระเบียน 0.0 ไร่ "
-            f"คือ {avg_no:.1f} จุด (n={n_no:,})"
+            f"ค่ามัธยฐานจุดความร้อนในระเบียนพื้นที่ทุเรียนมากกว่า 0.0 ไร่ "
+            f"คือ {median_has:.1f} จุด (n={n_has:,}); ระเบียน 0.0 ไร่ "
+            f"คือ {median_no:.1f} จุด (n={n_no:,})"
         )
     elif n_has:
-        answer_durian = f"ระเบียนพื้นที่ทุเรียนมากกว่า 0.0 ไร่มีค่าเฉลี่ย {avg_has:.1f} จุด (n={n_has:,})"
+        answer_durian = f"ระเบียนพื้นที่ทุเรียนมากกว่า 0.0 ไร่มีค่ามัธยฐาน {median_has:.1f} จุด (n={n_has:,})"
     elif n_no:
-        answer_durian = f"ระเบียนพื้นที่ทุเรียน 0.0 ไร่มีค่าเฉลี่ย {avg_no:.1f} จุด (n={n_no:,})"
+        answer_durian = f"ระเบียนพื้นที่ทุเรียน 0.0 ไร่มีค่ามัธยฐาน {median_no:.1f} จุด (n={n_no:,})"
     elif n_missing:
         answer_durian = (
             f"พบระเบียนพื้นที่ทุเรียนที่ไม่มีค่า {n_missing:,} ตำบล-ปี "
@@ -1126,44 +1253,45 @@ def update_entire_dashboard(filter_state, year_range, map_basemap, map_mode):
     else:
         answer_durian = "ไม่พบระเบียนพื้นที่ทุเรียนในช่วงตัวกรองที่เลือก"
 
-    comp_rows = []
-    if n_has:
-        comp_rows.append({
-            "กลุ่ม": f"ปลูกทุเรียน (>0 ไร่)<br>(n={n_has})",
-            "ค่าเฉลี่ย": avg_has,
-            "จำนวน": n_has,
-        })
-    if n_no:
-        comp_rows.append({
-            "กลุ่ม": f"ไม่ปลูก (0 ไร่)<br>(n={n_no})",
-            "ค่าเฉลี่ย": avg_no,
-            "จำนวน": n_no,
-        })
-    if comp_rows:
-        comp_df = pd.DataFrame(comp_rows)
-        fig_comp = px.bar(
-            comp_df, x="กลุ่ม", y="ค่าเฉลี่ย",
-            color="กลุ่ม",
-            text=comp_df.apply(lambda r: f"{r['ค่าเฉลี่ย']:.1f} จุด (n={r['จำนวน']})", axis=1),
-            color_discrete_sequence=["#84CC16", "#64748B"],
-        )
-        fig_comp.update_traces(textposition="outside", textfont=dict(size=12, color="#F8FAFC"))
+    comp_groups = [
+        (group_has, f"พื้นที่ทุเรียน > 0 ไร่ (n={n_has:,})", "#84CC16"),
+        (group_no, f"พื้นที่ทุเรียน 0.0 ไร่ (n={n_no:,})", "#64748B"),
+    ]
+    if n_has or n_no:
+        fig_comp = go.Figure()
+        for group, label, color in comp_groups:
+            if group.empty:
+                continue
+            fig_comp.add_trace(go.Box(
+                x=[label] * len(group),
+                y=group["hotspot_count"],
+                name=label,
+                boxpoints="all",
+                jitter=0.35,
+                pointpos=0,
+                marker=dict(color=color, size=5, opacity=0.65),
+                line=dict(color=color),
+                customdata=group[["อำเภอ_norm", "ตำบล_norm", "พ.ศ."]].to_numpy(),
+                hovertemplate=(
+                    "%{x}<br>จุดความร้อน: %{y:,}"
+                    "<br>อำเภอ: %{customdata[0]}"
+                    "<br>ตำบล: %{customdata[1]}"
+                    "<br>พ.ศ. %{customdata[2]:.0f}<extra></extra>"
+                ),
+            ))
         fig_comp.update_layout(
             **get_theme(
-                m=dict(l=30, r=10, t=25, b=30),
+                m=dict(l=45, r=15, t=20, b=65),
                 showlegend=False,
+                boxmode="group",
+                yaxis_title="จุดความร้อนที่ตรวจพบต่อตำบล-ปี",
+                xaxis_title="กลุ่มพื้นที่ตามค่าพื้นที่ทุเรียน",
             )
         )
-        fig_comp.update_yaxes(gridcolor="#1E293B")
-        fig_comp.update_xaxes(gridcolor="#1E293B")
+        fig_comp.update_yaxes(gridcolor="#1E293B", rangemode="tozero")
+        fig_comp.update_xaxes(gridcolor="#1E293B", tickangle=-8)
     else:
-        fig_comp = go.Figure()
-        fig_comp.add_annotation(
-            text="ไม่พบข้อมูลพื้นที่ทุเรียนในช่วงตัวกรองที่เลือก",
-            showarrow=False,
-            font=dict(size=12, color="#94A3B8"),
-        )
-        fig_comp.update_layout(**get_theme())
+        fig_comp = empty_chart("ไม่พบข้อมูลพื้นที่ทุเรียนในช่วงตัวกรองที่เลือก")
 
     # ── 10. Dynamic Insight Callout Box (styled like SAS Viya '?')
     years_label = f"พ.ศ. {active_be_years[0]}–{active_be_years[-1]}" if len(active_be_years) > 1 else f"พ.ศ. {active_be_years[0]}"
@@ -1172,16 +1300,16 @@ def update_entire_dashboard(filter_state, year_range, map_basemap, map_mode):
             html.Span("❓", style={"fontSize": "1.3rem", "color": "#F59E0B"}),
             html.Span(f"ข้อเท็จจริงเชิงพื้นที่ระดับตำบล ({years_label})", style={"fontWeight": "700", "color": "#F8FAFC"}),
         ], style={"display": "flex", "alignItems": "center", "gap": "6px", "marginBottom": "6px"}),
-        html.P([
-            f"• กลุ่มตำบลที่มีการปลูกทุเรียน (n = {n_has} ตำบล-ปี): พบจุดความร้อนเฉลี่ย ",
-            html.Strong(f"{avg_has:.1f} จุด/ตำบล ", style={"color": "#EA580C"}),
-            f"(ยอดรวม {sum_has:,} จุด)"
-        ], style={"margin": "0 0 4px 0"}),
-        html.P([
-            f"• กลุ่มตำบลที่ไม่มีการปลูกทุเรียน (n = {n_no} ตำบล-ปี): พบจุดความร้อนเฉลี่ย ",
-            html.Strong(f"{avg_no:.1f} จุด/ตำบล ", style={"color": "#94A3B8"}),
-            f"(ยอดรวม {sum_no:,} จุด)"
-        ], style={"margin": "0 0 6px 0"}),
+        html.P(
+            f"• กลุ่มพื้นที่ทุเรียนมากกว่า 0.0 ไร่ (n = {n_has} ตำบล-ปี): "
+            f"ค่ามัธยฐาน {median_has:.1f} จุด; ไม่พบจุดความร้อน {zero_has:,} ระเบียน",
+            style={"margin": "0 0 4px 0"},
+        ),
+        html.P(
+            f"• กลุ่มพื้นที่ทุเรียน 0.0 ไร่ (n = {n_no} ตำบล-ปี): "
+            f"ค่ามัธยฐาน {median_no:.1f} จุด; ไม่พบจุดความร้อน {zero_no:,} ระเบียน",
+            style={"margin": "0 0 6px 0"},
+        ),
         html.Div([
             html.Small(
                 f"ระเบียนพื้นที่ทุเรียนที่บันทึกเป็น 0.0 ไร่: {n_no:,} ตำบล-ปี; "
@@ -1381,33 +1509,82 @@ def update_entire_dashboard(filter_state, year_range, map_basemap, map_mode):
     )
 
     # ── 13. Annual Durian Trend Line ───────────────────────────
-    if t_filter:
-        tr_df = df_d[df_d["ตำบล_norm"] == t_filter].groupby("พ.ศ.")["durian_area_rai"].sum(min_count=1).reset_index()
-        tr_title = f"พื้นที่ทุเรียน ต.{t_filter} (ไร่)"
-    elif a_filter:
-        tr_df = df_d[df_d["อำเภอ_norm"] == a_filter].groupby("พ.ศ.")["durian_area_rai"].sum(min_count=1).reset_index()
-        tr_title = f"พื้นที่ทุเรียน อ.{a_filter} (ไร่)"
-    else:
-        tr_df = df_d.groupby("พ.ศ.")["durian_area_rai"].sum(min_count=1).reset_index()
-        tr_title = "พื้นที่ทุเรียนทั้งจังหวัดกาญจนบุรี (ไร่)"
-
-    fig_durian_line = px.line(
-        tr_df, x="พ.ศ.", y="durian_area_rai",
-        markers=True,
-        labels={"พ.ศ.": "", "durian_area_rai": ""},
-    )
-    fig_durian_line.update_traces(
-        line=dict(color="#84CC16", width=2.5),
-        marker=dict(size=6, color="#BEF264")
-    )
-    fig_durian_line.update_layout(
-        **get_theme(
-            m=dict(l=35, r=10, t=25, b=20),
-            title=dict(text=tr_title, font=dict(size=12, color="#94A3B8"))
+    durian_history = df_joined_all.copy()
+    if a_filter:
+        durian_history = durian_history[durian_history["อำเภอ_norm"] == a_filter]
+    if t_filter and a_filter:
+        durian_history = durian_history[
+            (durian_history["อำเภอ_norm"] == a_filter)
+            & (durian_history["ตำบล_norm"] == t_filter)
+        ]
+    tr_df = (
+        durian_history.groupby("พ.ศ.").agg(
+            durian_area_rai=("durian_area_rai", lambda values: values.sum(min_count=1)),
+            tambon_count=("durian_area_rai", "count"),
         )
+        .reset_index()
+        .dropna(subset=["durian_area_rai"])
     )
-    fig_durian_line.update_xaxes(tickmode="linear", tick0=2561, dtick=1, gridcolor="#1E293B")
-    fig_durian_line.update_yaxes(gridcolor="#1E293B")
+    if not tr_df.empty:
+        tr_df["in_selected_year_range"] = tr_df["พ.ศ."].between(
+            year_range[0] + 543, year_range[1] + 543
+        )
+        fig_durian_line = px.line(
+            tr_df,
+            x="พ.ศ.",
+            y="durian_area_rai",
+            markers=True,
+            text=tr_df["durian_area_rai"].map(lambda area: f"{area:,.0f}"),
+            custom_data=["tambon_count", "in_selected_year_range"],
+            labels={"พ.ศ.": "พ.ศ.", "durian_area_rai": "พื้นที่ปลูกทุเรียน (ไร่)"},
+        )
+        fig_durian_line.update_traces(
+            line=dict(color="#84CC16", width=2.5),
+            marker=dict(
+                size=[
+                    9 if selected else 6
+                    for selected in tr_df["in_selected_year_range"]
+                ],
+                color=[
+                    "#BEF264" if selected else "#64748B"
+                    for selected in tr_df["in_selected_year_range"]
+                ],
+            ),
+            textposition="top center",
+            textfont=dict(color="#E2E8F0", size=10),
+            hovertemplate=(
+                "พ.ศ. %{x:.0f}<br>พื้นที่ปลูกทุเรียน: %{y:,.1f} ไร่"
+                "<br>ตำบลที่มีข้อมูล: %{customdata[0]:.0f} ตำบล"
+                "<br>อยู่ในช่วงปีที่เลือก: %{customdata[1]}<extra></extra>"
+            ),
+        )
+        history_note = (
+            "จำนวนตำบลที่มีข้อมูลเปลี่ยนแปลงตามปี; "
+            "ยอดรวมระหว่างปีจึงไม่ควรเปรียบเทียบโดยตรง · "
+            "จุดสีเขียวแสดงช่วงปีที่เลือก"
+        )
+        fig_durian_line.update_layout(
+            **get_theme(
+                m=dict(l=45, r=15, t=20, b=65),
+                yaxis_title="พื้นที่ปลูกทุเรียน (ไร่)",
+                annotations=[dict(
+                    text=history_note,
+                    xref="paper", yref="paper",
+                    x=0, y=-0.28, showarrow=False,
+                    xanchor="left",
+                    font=dict(color="#FDE68A", size=11),
+                )],
+            )
+        )
+        fig_durian_line.update_xaxes(
+            tickmode="array",
+            tickvals=tr_df["พ.ศ."].astype(int).tolist(),
+            ticktext=tr_df["พ.ศ."].astype(int).astype(str).tolist(),
+            gridcolor="#1E293B",
+        )
+        fig_durian_line.update_yaxes(gridcolor="#1E293B")
+    else:
+        fig_durian_line = empty_chart("ไม่พบข้อมูลพื้นที่ทุเรียนตามตัวกรองที่เลือก")
 
     return (
         integrity_warning,
@@ -1426,6 +1603,7 @@ def update_entire_dashboard(filter_state, year_range, map_basemap, map_mode):
         answer_trends,
         hours_items,
         fig_activity,
+        fig_hour_month,
         fig_seasonality,
         fig_donut,
         fig_treemap,
