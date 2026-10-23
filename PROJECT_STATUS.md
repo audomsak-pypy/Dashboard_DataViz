@@ -58,3 +58,11 @@
 - [x] **แก้ Error แผนที่:** กำจัดคำสั่ง `scatter_mapbox` และพารามิเตอร์ `mapbox_style` ออกจากทั้งโปรเจกต์ 100% และเปลี่ยนมาใช้ `px.scatter_map` พร้อม `map_style="carto-darkmatter"` ตามมาตรฐาน Plotly 7.x
 - [x] **เพิ่มส่วน Executive Summary:** บรรจุบล็อกข้อความ 'วัตถุประสงค์ของ Dashboard (Objective)' และ 'ประโยชน์ที่ได้รับ (Key Insights)' ไว้ด้านบนสุดก่อนเข้าสู่แท็บข้อมูล โดยคงรูปแบบ Dark/Fire ไม่มีอิโมจิ
 - [x] **ทดสอบการทำงาน:** รันทดสอบคำสั่ง `px.scatter_map` และแอปพลิเคชันผ่านฉลุย สถานะ HTTP 200 OK
+
+### Step 7: Executive Summary & Dashboard Guide in Overview Tab
+- [x] **เพิ่มส่วนคู่มือการวิเคราะห์ (Dashboard Guide):** เพิ่มบล็อก Expander ที่ด้านบนสุดของ Tab 1 (ภาพรวมจุดความร้อน) อธิบายวัตถุประสงค์และจับคู่ชาร์ตกับคำถามทางธุรกิจ (Chart-to-Question Mapping) ครบทั้ง 3 มิติ:
+  1. *Spatial & Location Analysis* (Geographic Map & Heatmap -> พื้นที่วิกฤต/การกระจุกตัว)
+  2. *Temporal Trends Analysis* (Seasonal Wave & Hourly Breakdown -> ฤดูกาลพีค/ช่วงเวลาในรอบวัน)
+  3. *Statistical & Comparative Analysis* (Mann-Whitney U Test & Dual-Axis -> นัยสำคัญทางสถิติระดับตำบล)
+- [x] **คงความ Professional:** ใช้สไตล์ Dark/Fire (เส้นขอบแดง-ส้ม-อำพันบนพื้นหลังถ่านดำ) ไร้อิโมจิ 100%
+- [x] **ตรวจสอบความเรียบร้อย:** เซิร์ฟเวอร์ Streamlit กำลังทำงานต่อเนื่องด้วยสถานะ HTTP 200 OK
