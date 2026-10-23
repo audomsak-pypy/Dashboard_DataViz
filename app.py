@@ -358,7 +358,7 @@ app.layout = html.Div([
                                 options=[
                                     {"label": "ดาวเทียม", "value": "satellite"},
                                     {"label": "มืด", "value": "carto-darkmatter"},
-                                    {"label": "ถนน", "value": "open-street-map"},
+                                    {"label": "สว่าง", "value": "open-street-map"},
                                 ],
                                 value="open-street-map",
                                 inline=True,
