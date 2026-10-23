@@ -53,3 +53,8 @@
 - [x] **ซ่อน Modebar:** ตั้งค่า `displayModeBar: False` ในกราฟทุกตัว
 - [x] **แก้ปัญหาข้อความโดนตัด:** เขียน Custom CSS บังคับ `white-space: normal !important; word-break: break-word !important;` ทั้ง Metric Label และ Metric Value ห้ามแสดงจุดไข่ปลา `...`
 - [x] **เพิ่ม Breathing Room:** ปรับ Padding, Margin และ Spacing ให้โปร่งสบายระดับ Executive Presentation
+
+### Step 6: Plotly 7 Compatibility & Executive Summary Block
+- [x] **แก้ Error แผนที่:** กำจัดคำสั่ง `scatter_mapbox` และพารามิเตอร์ `mapbox_style` ออกจากทั้งโปรเจกต์ 100% และเปลี่ยนมาใช้ `px.scatter_map` พร้อม `map_style="carto-darkmatter"` ตามมาตรฐาน Plotly 7.x
+- [x] **เพิ่มส่วน Executive Summary:** บรรจุบล็อกข้อความ 'วัตถุประสงค์ของ Dashboard (Objective)' และ 'ประโยชน์ที่ได้รับ (Key Insights)' ไว้ด้านบนสุดก่อนเข้าสู่แท็บข้อมูล โดยคงรูปแบบ Dark/Fire ไม่มีอิโมจิ
+- [x] **ทดสอบการทำงาน:** รันทดสอบคำสั่ง `px.scatter_map` และแอปพลิเคชันผ่านฉลุย สถานะ HTTP 200 OK
