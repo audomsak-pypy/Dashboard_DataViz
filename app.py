@@ -314,17 +314,35 @@ app.layout = html.Div([
                         ),
                     ]),
                     wide=True,
-                    action=dbc.RadioItems(
-                        id="map-basemap",
-                        options=[
-                            {"label": "ดาวเทียม", "value": "satellite"},
-                            {"label": "มืด", "value": "carto-darkmatter"},
-                            {"label": "ถนน", "value": "open-street-map"},
-                        ],
-                        value="open-street-map",
-                        inline=True,
-                        className="map-basemap-options",
-                    ),
+                    action=html.Div([
+                        html.Div([
+                            html.Span("รูปแบบ"),
+                            dcc.RadioItems(
+                                id="map-mode",
+                                options=[
+                                    {"label": "จุด", "value": "scatter"},
+                                    {"label": "ความหนาแน่น", "value": "density"},
+                                ],
+                                value="scatter",
+                                inline=True,
+                                className="map-basemap-options",
+                            ),
+                        ], className="map-control-group"),
+                        html.Div([
+                            html.Span("แผนที่"),
+                            dcc.RadioItems(
+                                id="map-basemap",
+                                options=[
+                                    {"label": "ดาวเทียม", "value": "satellite"},
+                                    {"label": "มืด", "value": "carto-darkmatter"},
+                                    {"label": "ถนน", "value": "open-street-map"},
+                                ],
+                                value="open-street-map",
+                                inline=True,
+                                className="map-basemap-options",
+                            ),
+                        ], className="map-control-group"),
+                    ], className="map-controls"),
                 ),
                 chart_card(
                     "ระดับความเชื่อมั่น (คลิกวงแหวนเพื่อกรอง)",
@@ -333,6 +351,21 @@ app.layout = html.Div([
                 chart_card(
                     "จุดความร้อนแยกตามประเภทป่า (คลิกแท่งเพื่อกรอง)",
                     dcc.Graph(id="chart-pa-treemap", style={"height": "240px"}),
+                ),
+                chart_card(
+                    "10 ตำบลที่มีจุดความร้อนสูงสุด (คลิกแท่งเพื่อเลือกตำบล)",
+                    dcc.Graph(id="chart-top-tambon", style={"height": "300px"}),
+                    wide=True,
+                ),
+                chart_card(
+                    "จำนวนวันที่ตรวจพบจุดความร้อนแยกตามตำบล",
+                    dcc.Graph(id="chart-recurrence", style={"height": "300px"}),
+                    wide=True,
+                ),
+                chart_card(
+                    "จุดความร้อนแยกตามอำเภอและประเภทป่าอนุรักษ์",
+                    dcc.Graph(id="chart-district-forest", style={"height": "320px"}),
+                    wide=True,
                 ),
             ], "section-where"),
             question_section("3", "ข้อมูลพื้นที่ทุเรียนและจุดความร้อน", "answer-durian", [
@@ -372,6 +405,9 @@ app.layout = html.Div([
     Input("chart-pa-treemap", "clickData"),
     Input("chart-activity", "clickData"),
     Input("chart-seasonality", "clickData"),
+    Input("chart-top-tambon", "clickData"),
+    Input("chart-recurrence", "clickData"),
+    Input("chart-district-forest", "clickData"),
     Input("filter-amphoe", "value"),
     Input("filter-pa", "value"),
     Input("filter-conf", "value"),
@@ -379,6 +415,7 @@ app.layout = html.Div([
     prevent_initial_call=True,
 )
 def handle_all_cross_filters(n_reset, map_click, tbl_child, conf_click, pa_click, act_click, season_click,
+                             top_tambon_click, recurrence_click, district_forest_click,
                              amphoe_dd, pa_dd, conf_dd, current_store):
     trigger = ctx.triggered_id
     state = dict(current_store) if current_store else {"tambon": None, "amphoe": None, "conf": None, "pa": None, "month": None, "season": None}
@@ -439,7 +476,26 @@ def handle_all_cross_filters(n_reset, map_click, tbl_child, conf_click, pa_click
         except Exception:
             pass
 
-    # 7. Dropdown inputs
+    # 7. Tambon count and recurrence charts
+    area_clicks = {
+        "chart-top-tambon": top_tambon_click,
+        "chart-recurrence": recurrence_click,
+    }
+    if trigger in area_clicks and area_clicks[trigger]:
+        point = (area_clicks[trigger].get("points") or [None])[0]
+        custom_data = point.get("customdata") if point else None
+        if custom_data and len(custom_data) >= 2:
+            state["amphoe"], state["tambon"] = custom_data[0], custom_data[1]
+
+    # 8. District and forest type stacked bar
+    if trigger == "chart-district-forest" and district_forest_click:
+        point = (district_forest_click.get("points") or [None])[0]
+        custom_data = point.get("customdata") if point else None
+        if custom_data and len(custom_data) >= 2:
+            state["amphoe"], state["pa"] = custom_data[0], custom_data[1]
+            state["tambon"] = None
+
+    # 9. Dropdown inputs
     if trigger == "filter-amphoe":
         state["amphoe"] = amphoe_dd
     if trigger == "filter-pa":
@@ -549,6 +605,9 @@ def render_filter_pills(store, year_range):
     Output("chart-seasonality",       "figure"),
     Output("chart-conf-donut",        "figure"),
     Output("chart-pa-treemap",        "figure"),
+    Output("chart-top-tambon",        "figure"),
+    Output("chart-recurrence",        "figure"),
+    Output("chart-district-forest",   "figure"),
     Output("chart-simple-comparison", "figure"),
     Output("dynamic-context-card",    "children"),
     Output("spatial-map",             "figure"),
@@ -558,8 +617,9 @@ def render_filter_pills(store, year_range):
     Input("cross-filter-store",       "data"),
     Input("filter-year",              "value"),
     Input("map-basemap",              "value"),
+    Input("map-mode",                 "value"),
 )
-def update_entire_dashboard(filter_state, year_range, map_basemap):
+def update_entire_dashboard(filter_state, year_range, map_basemap, map_mode):
     state = filter_state or {}
     t_filter = state.get("tambon")
     a_filter = state.get("amphoe")
@@ -581,6 +641,16 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
         )
         d.update(kwargs)
         return d
+
+    def empty_chart(message, m=None):
+        figure = go.Figure()
+        figure.add_annotation(
+            text=message,
+            showarrow=False,
+            font=dict(size=12, color="#94A3B8"),
+        )
+        figure.update_layout(**get_theme(m=m))
+        return figure
 
     # ── 3. Scorecard values ───────────────────────────────────
     cur_hotspots = metrics["hotspot_total"]
@@ -794,6 +864,112 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
     else:
         fig_treemap = go.Figure().update_layout(**get_theme(title="ไม่มีข้อมูล"))
 
+    tambon_counts = (
+        df_h.groupby(["อำเภอ_norm", "ตำบล_norm"])
+        .size()
+        .rename("count")
+        .reset_index()
+    )
+    top_tambon = tambon_counts.sort_values("count", ascending=True).tail(10).copy()
+    top_tambon["พื้นที่"] = top_tambon["ตำบล_norm"] + " · " + top_tambon["อำเภอ_norm"]
+    if not top_tambon.empty:
+        fig_top_tambon = px.bar(
+            top_tambon,
+            x="count",
+            y="พื้นที่",
+            orientation="h",
+            color="count",
+            text=top_tambon["count"].map(lambda count: f"{count:,} จุด"),
+            custom_data=["อำเภอ_norm", "ตำบล_norm"],
+            color_continuous_scale="Oranges",
+        )
+        fig_top_tambon.update_traces(
+            textposition="outside",
+            textfont=dict(size=12, color="#F8FAFC"),
+            hovertemplate="%{y}<br>%{x:,} จุด<extra></extra>",
+        )
+        fig_top_tambon.update_layout(
+            **get_theme(
+                m=dict(l=150, r=35, t=10, b=20),
+                showlegend=False,
+                coloraxis_showscale=False,
+            )
+        )
+        fig_top_tambon.update_xaxes(gridcolor="#1E293B", title="")
+        fig_top_tambon.update_yaxes(autorange="reversed", title="")
+    else:
+        fig_top_tambon = empty_chart("ไม่พบข้อมูลตำบลในช่วงตัวกรองที่เลือก")
+
+    recurrence_counts = (
+        df_h.assign(report_day=df_h["date_parsed"].dt.date)
+        .groupby(["อำเภอ_norm", "ตำบล_norm"])["report_day"]
+        .nunique()
+        .rename("days")
+        .reset_index()
+    )
+    recurrence_top = recurrence_counts.sort_values("days", ascending=True).tail(10).copy()
+    recurrence_top["พื้นที่"] = (
+        recurrence_top["ตำบล_norm"] + " · " + recurrence_top["อำเภอ_norm"]
+    )
+    if not recurrence_top.empty:
+        fig_recurrence = px.bar(
+            recurrence_top,
+            x="days",
+            y="พื้นที่",
+            orientation="h",
+            color="days",
+            text=recurrence_top["days"].map(lambda days: f"{days:,} วัน"),
+            custom_data=["อำเภอ_norm", "ตำบล_norm"],
+            color_continuous_scale="Blues",
+        )
+        fig_recurrence.update_traces(
+            textposition="outside",
+            textfont=dict(size=12, color="#F8FAFC"),
+            hovertemplate="%{y}<br>%{x:,} วัน<extra></extra>",
+        )
+        fig_recurrence.update_layout(
+            **get_theme(
+                m=dict(l=150, r=35, t=10, b=20),
+                showlegend=False,
+                coloraxis_showscale=False,
+            )
+        )
+        fig_recurrence.update_xaxes(gridcolor="#1E293B", title="")
+        fig_recurrence.update_yaxes(autorange="reversed", title="")
+    else:
+        fig_recurrence = empty_chart("ไม่พบวันที่ตรวจพบในช่วงตัวกรองที่เลือก")
+
+    district_forest = (
+        df_h.groupby(["อำเภอ_norm", "ประเภทป่าอนุรักษ์"])
+        .size()
+        .reset_index(name="count")
+    )
+    if not district_forest.empty:
+        fig_district_forest = px.bar(
+            district_forest,
+            x="อำเภอ_norm",
+            y="count",
+            color="ประเภทป่าอนุรักษ์",
+            barmode="stack",
+            custom_data=["อำเภอ_norm", "ประเภทป่าอนุรักษ์"],
+            color_discrete_sequence=px.colors.qualitative.Bold,
+            labels={"อำเภอ_norm": "อำเภอ", "count": "จุดความร้อน"},
+        )
+        fig_district_forest.update_traces(
+            hovertemplate="%{x}<br>%{fullData.name}: %{y:,} จุด<extra></extra>"
+        )
+        fig_district_forest.update_layout(
+            **get_theme(
+                m=dict(l=45, r=15, t=15, b=40),
+                barmode="stack",
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
+            )
+        )
+        fig_district_forest.update_xaxes(gridcolor="#1E293B", title="")
+        fig_district_forest.update_yaxes(gridcolor="#1E293B", title="")
+    else:
+        fig_district_forest = empty_chart("ไม่พบข้อมูลอำเภอในช่วงตัวกรองที่เลือก")
+
     # ── 9. Section D: Simple Comparison Bar Chart ──────────────
     active_be_years = [y + 543 for y in range(year_range[0], year_range[1] + 1)]
     joined_active = df_joined_all[df_joined_all["พ.ศ."].isin(active_be_years)].copy()
@@ -913,12 +1089,45 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
         ], style={"backgroundColor": "#0E1624", "padding": "6px 8px", "borderRadius": "4px", "borderLeft": "3px solid #F59E0B"}),
     ])
 
-    # ── 11. Spatial Map (Satellite / Dark Matter) ───────────────
+    # ── 11. Spatial Map ───────────────────────────────────────
     if cur_hotspots == 0:
-        fig_map = go.Figure().update_layout(
+        fig_map = empty_chart("ไม่พบจุดความร้อนตามตัวกรองที่เลือก")
+        fig_map.update_layout(paper_bgcolor="#0E1624")
+    elif map_mode == "density":
+        fig_map = px.density_map(
+            df_h,
+            lat="LAT",
+            lon="LONG",
+            hover_name="ตำบล_norm",
+            hover_data={
+                "อำเภอ_norm": True,
+                "ตำบล_norm": True,
+                "ว/ด/ป": True,
+                "time_hhmm": True,
+                "สถานีฯที่รับผิดชอบ": True,
+                "CONFEDENCE": True,
+                "LAT": False,
+                "LONG": False,
+            },
+            custom_data=["ตำบล_norm", "อำเภอ_norm"],
+            color_continuous_scale="Inferno",
+            map_style=map_basemap,
+            zoom=8,
+            center={"lat": 14.8, "lon": 98.9},
+            opacity=0.75,
+            radius=20,
+        )
+        fig_map.update_traces(
+            hovertemplate="%{hovertext}<br>ความหนาแน่น: %{z:.2f}<extra></extra>"
+        )
+        fig_map.update_layout(
             paper_bgcolor="#0E1624",
-            font=dict(color="#E2E8F0", family="Sarabun"),
-            title="ไม่พบจุดความร้อนตามตัวกรองที่เลือก"
+            margin=dict(l=0, r=0, t=0, b=0),
+            coloraxis_colorbar=dict(
+                title="ความหนาแน่น",
+                tickfont=dict(color="#E2E8F0"),
+                title_font=dict(color="#E2E8F0"),
+            ),
         )
     else:
         fig_map = px.scatter_map(
@@ -1106,6 +1315,9 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
         fig_seasonality,
         fig_donut,
         fig_treemap,
+        fig_top_tambon,
+        fig_recurrence,
+        fig_district_forest,
         fig_comp,
         context_card,
         fig_map,
