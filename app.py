@@ -376,6 +376,7 @@ app.layout = html.Div([
             "conf": None,
             "pa": None,
             "month": None,
+            "season": None,
         }
     ),
 
@@ -528,13 +529,25 @@ app.layout = html.Div([
                     dbc.Col([
                         dbc.Card([
                             html.Div([
-                                html.Span("📈 การกระจายตัวรายเดือน (คลิกแท่งเพื่อกรองเดือน)"),
+                                html.Span("📈 ฤดูกาลจุดความร้อนรายเดือน (คลิกข้อมูลเพื่อกรองเดือน)"),
                             ], className="viya-panel-header"),
                             dbc.CardBody([
                                 dcc.Graph(id="chart-activity", style={"height": "210px"}),
                             ], className="p-1"),
                         ], className="viya-panel h-100"),
                     ], md=8, className="mb-2"),
+                ], className="g-2"),
+
+                # Row 2: Seasonality split
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Card([
+                            html.Div("🌦️ สัดส่วนฤดูแล้งและฤดูฝน (คลิกส่วนเพื่อกรอง)", className="viya-panel-header"),
+                            dbc.CardBody([
+                                dcc.Graph(id="chart-seasonality", style={"height": "180px"}),
+                            ], className="p-1"),
+                        ], className="viya-panel h-100"),
+                    ], md=12, className="mb-2"),
                 ], className="g-2"),
 
                 # Row 3: Confidence Donut + Forest Land Cover Treemap
@@ -667,20 +680,21 @@ app.layout = html.Div([
     Input("chart-conf-donut", "clickData"),
     Input("chart-pa-treemap", "clickData"),
     Input("chart-activity", "clickData"),
+    Input("chart-seasonality", "clickData"),
     Input("filter-amphoe", "value"),
     Input("filter-pa", "value"),
     Input("filter-conf", "value"),
     State("cross-filter-store", "data"),
     prevent_initial_call=True,
 )
-def handle_all_cross_filters(n_reset, map_click, tbl_child, conf_click, pa_click, act_click,
+def handle_all_cross_filters(n_reset, map_click, tbl_child, conf_click, pa_click, act_click, season_click,
                              amphoe_dd, pa_dd, conf_dd, current_store):
     trigger = ctx.triggered_id
-    state = dict(current_store) if current_store else {"tambon": None, "amphoe": None, "conf": None, "pa": None, "month": None}
+    state = dict(current_store) if current_store else {"tambon": None, "amphoe": None, "conf": None, "pa": None, "month": None, "season": None}
 
     # 1. Reset Button Clicked
     if trigger == "btn-reset":
-        return {"tambon": None, "amphoe": None, "conf": None, "pa": None, "month": None}, None, None, None
+        return {"tambon": None, "amphoe": None, "conf": None, "pa": None, "month": None, "season": None}, None, None, None
 
     # 2. Map point clicked
     if trigger == "spatial-map" and map_click:
@@ -724,7 +738,17 @@ def handle_all_cross_filters(n_reset, map_click, tbl_child, conf_click, pa_click
         except Exception:
             pass
 
-    # 6. Dropdown inputs
+    # 6. Seasonality chart clicked
+    if trigger == "chart-seasonality" and season_click:
+        try:
+            label = season_click["points"][0].get("x") or season_click["points"][0].get("label")
+            season = {"ฤดูแล้ง (พ.ย.–เม.ย.)": "dry", "ฤดูฝน (พ.ค.–ต.ค.)": "rainy"}.get(label)
+            if season:
+                state["season"] = None if state.get("season") == season else season
+        except Exception:
+            pass
+
+    # 7. Dropdown inputs
     if trigger == "filter-amphoe":
         state["amphoe"] = amphoe_dd
     if trigger == "filter-pa":
@@ -780,6 +804,9 @@ def render_filter_pills(store, year_range):
     if store.get("month"):
         m_name = MONTH_LABELS.get(store["month"], str(store["month"]))
         pills.append(html.Span(["📅 เดือน: ", html.Strong(m_name)], className="filter-pill"))
+    if store.get("season"):
+        season_name = "ฤดูแล้ง" if store["season"] == "dry" else "ฤดูฝน"
+        pills.append(html.Span(["🌦️ ฤดูกาล: ", html.Strong(season_name)], className="filter-pill"))
 
     if not pills:
         return html.Span("แสดงผลภาพรวมทั้งจังหวัด (ไม่มีตัวกรองเฉพาะ)", style={"color": "#64748B", "fontSize": "0.76rem"})
@@ -798,6 +825,7 @@ def render_filter_pills(store, year_range):
     Output("kpi-quality-meta",        "children"),
     Output("top-hours-list",          "children"),
     Output("chart-activity",          "figure"),
+    Output("chart-seasonality",       "figure"),
     Output("chart-conf-donut",        "figure"),
     Output("chart-pa-treemap",        "figure"),
     Output("chart-simple-comparison", "figure"),
@@ -868,32 +896,52 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
     if not hours_items:
         hours_items = [html.P("ไม่พบข้อมูลชั่วโมง", style={"fontSize": "0.75rem", "color": "#64748B"})]
 
-    # ── 6. Monthly Fire Activity (Bar + Spline Curve) ──────────
-    m_counts = df_h.groupby("month").size().reset_index(name="count").sort_values("month")
-    m_counts["label"] = m_counts["month"].map(MONTH_LABELS)
+    # ── 6. Monthly fire activity by year ───────────────────────
+    m_counts = df_h.assign(year=df_h["date_parsed"].dt.year).groupby(["year", "month"]).size().reset_index(name="count")
     fig_activity = go.Figure()
+    month_order = list(range(1, 13))
+    total_by_month = m_counts.groupby("month")["count"].sum().reindex(month_order, fill_value=0)
     fig_activity.add_trace(go.Bar(
-        x=m_counts["label"], y=m_counts["count"],
-        name="Hotspot Count",
-        marker=dict(color="#D9531E", opacity=0.85),
+        x=[MONTH_LABELS[m] for m in month_order], y=total_by_month,
+        name="รวม", marker=dict(color="#D9531E", opacity=0.36),
+        hovertemplate="%{x}<br>รวม %{y:,} จุด<extra></extra>",
     ))
-    fig_activity.add_trace(go.Scatter(
-        x=m_counts["label"], y=m_counts["count"],
-        name="Trend Curve",
-        mode="lines+markers",
-        line=dict(color="#F59E0B", width=2.5, shape="spline"),
-        marker=dict(size=6, color="#FDE68A"),
-    ))
+    line_colors = ["#FDE68A", "#38BDF8", "#F87171", "#C4B5FD"]
+    for index, year in enumerate(sorted(m_counts["year"].unique())):
+        yearly = m_counts[m_counts["year"] == year].set_index("month")["count"].reindex(month_order, fill_value=0)
+        fig_activity.add_trace(go.Scatter(
+            x=[MONTH_LABELS[m] for m in month_order], y=yearly,
+            name=f"พ.ศ. {year + 543}", mode="lines+markers",
+            line=dict(color=line_colors[index % len(line_colors)], width=2.2),
+            marker=dict(size=5),
+            hovertemplate=f"พ.ศ. {year + 543}<br>%{{x}}: %{{y:,}} จุด<extra></extra>",
+        ))
     fig_activity.update_layout(
         **get_theme(
             m=dict(l=35, r=10, t=15, b=25),
-            showlegend=False,
+            barmode="group",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0, font=dict(size=9)),
         )
     )
     fig_activity.update_xaxes(gridcolor="#1E293B")
     fig_activity.update_yaxes(gridcolor="#1E293B")
 
-    # ── 7. Confidence Donut (Thick Donut Ring with Center Text) ──
+    # ── 7. Seasonality indicator ───────────────────────────────
+    dry_months = {11, 12, 1, 2, 3, 4}
+    season_counts = pd.DataFrame({
+        "ฤดูกาล": ["ฤดูแล้ง (พ.ย.–เม.ย.)", "ฤดูฝน (พ.ค.–ต.ค.)"],
+        "จำนวน": [int(df_h["month"].isin(dry_months).sum()), int((~df_h["month"].isin(dry_months)).sum())],
+    })
+    fig_seasonality = px.bar(
+        season_counts, x="ฤดูกาล", y="จำนวน", color="ฤดูกาล", text="จำนวน",
+        color_discrete_map={"ฤดูแล้ง (พ.ย.–เม.ย.)": "#F59E0B", "ฤดูฝน (พ.ค.–ต.ค.)": "#38BDF8"},
+    )
+    fig_seasonality.update_traces(texttemplate="%{text:,} จุด", textposition="outside")
+    fig_seasonality.update_layout(**get_theme(m=dict(l=35, r=10, t=15, b=30), showlegend=False))
+    fig_seasonality.update_xaxes(gridcolor="#1E293B")
+    fig_seasonality.update_yaxes(gridcolor="#1E293B")
+
+    # ── 8. Confidence Donut (Thick Donut Ring with Center Text) ──
     conf_dist = df_h["CONFEDENCE"].value_counts().reset_index()
     conf_dist.columns = ["CONFEDENCE", "count"]
     conf_color_map = {"nominal": "#F59E0B", "low": "#38BDF8", "high": "#EF4444"}
@@ -1184,6 +1232,7 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
         kpi_quality_meta,
         hours_items,
         fig_activity,
+        fig_seasonality,
         fig_donut,
         fig_treemap,
         fig_comp,
