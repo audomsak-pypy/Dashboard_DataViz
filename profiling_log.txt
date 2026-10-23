@@ -1,0 +1,145 @@
+============================================================
+  SOURCE 1: cleaned_dataset_Wildfire.csv
+============================================================
+Shape            : (8606, 20)
+Total Hotspots   : 8606  (Expected: 8,606 → ✓ OK)
+
+--- Column dtypes ---
+  รายการข้อมูล                   object        nulls=0
+  ว/ด/ป                          object        nulls=0
+  เวลา                           float64       nulls=0
+  LAT                            float64       nulls=0
+  LONG                           float64       nulls=0
+  POINT_X                        float64       nulls=0
+  POINT_Y                        float64       nulls=0
+  ดาวเทียม                       object        nulls=0
+  ตำบล                           object        nulls=0
+  อำเภอ                          object        nulls=0
+  จังหวัด                        object        nulls=0
+  ภาค                            object        nulls=0
+  ชื่อพื้นที่                    object        nulls=0
+  ประเภทป่าอนุรักษ์              object        nulls=0
+  สถานีฯที่รับผิดชอบ             object        nulls=0
+  สบอ.                           object        nulls=0
+  CONFEDENCE                     object        nulls=0
+  ประเภท Hotspot                 object        nulls=0
+  Link Google Map                object        nulls=0
+  หมายเหตุ                       object        nulls=0
+
+--- Key column value ranges ---
+  LAT   : min=13.94696  max=15.65590
+  LONG  : min=98.18518  max=99.46716
+  เวลา  : min=1.04  max=14.39  nulls=0
+
+--- ว/ด/ป sample values ---
+  Unique date count  : 213
+  Sample dates       : ['19-พ.ย.-23', '10-ธ.ค.-23', '18-ธ.ค.-23', '20-ธ.ค.-23', '22-ธ.ค.-23']
+
+--- จังหวัด unique values ---
+  ['กาญจนบุรี']
+
+--- อำเภอ: whitespace check ---
+  อำเภอ rows with leading/trailing whitespace : 0
+  ตำบล  rows with leading/trailing whitespace : 0
+
+--- CONFEDENCE distribution ---
+CONFEDENCE
+nominal    7297
+low        1133
+high        176
+
+--- ประเภท Hotspot distribution ---
+ประเภท Hotspot
+ป่าคงสภาพ            6815
+nominal              1409
+พื้นที่ราษฎรทำกิน     172
+low                   167
+high                   43
+
+--- ประเภทป่าอนุรักษ์ distribution ---
+ประเภทป่าอนุรักษ์
+อุทยานแห่งชาติ                 5190
+เขตรักษาพันธุ์สัตว์ป่า         3226
+เตรียมการเขตห้ามล่าสัตว์ป่า      96
+เขตห้ามล่าสัตว์ป่า               94
+
+--- สถานีฯที่รับผิดชอบ distribution ---
+สถานีฯที่รับผิดชอบ
+ไม่ระบุสถานี                                    7276
+สถานีควบคุมไฟป่าเขื่อนศรีนครินทร์                462
+สถานีควบคุมไฟป่าสลักพระ-เอราวัณ                  419
+สถานีควบคุมไฟป่าไทรโยค                           346
+สถานีควบคุมไฟป่าทุ่งใหญ่นเรศวรด้านทิศตะวันตก     102
+สถานีควบคุมไฟป่ากรึงไกร                            1
+
+--- Year distribution (from ว/ด/ป) ---
+_year_CE
+2023      11
+2024    6991
+2025    1604
+
+--- อำเภอ unique values ---
+  Unique อำเภอ count: 7
+  Values: ['ทองผาภูมิ', 'บ่อพลอย', 'ศรีสวัสดิ์', 'สังขละบุรี', 'หนองปรือ', 'เมืองกาญจนบุรี', 'ไทรโยค']
+
+--- ตำบล unique values ---
+  Unique ตำบล count: 31
+============================================================
+  SOURCE 2: wildfire_point.csv (Durian)
+============================================================
+Shape            : (441, 8)
+
+--- Column dtypes ---
+  รายการข้อมูล         object        nulls=0
+  จังหวัด              object        nulls=0
+  พ.ศ.                 int64         nulls=0
+  อำเภอ                object        nulls=0
+  ตำบล                 object        nulls=0
+  จำนวน                float64       nulls=0
+  หน่วยนับ             object        nulls=0
+  ที่มา                object        nulls=0
+
+--- พ.ศ. unique values ---
+  [2561, 2562, 2563, 2564, 2565, 2566, 2567, 2568]
+
+--- จำนวน (durian area rai) stats ---
+  min    : 0.0
+  max    : 2107.0
+  mean   : 123.17
+  nulls  : 0
+  zeros  : 55
+
+--- อำเภอ whitespace check (durian) ---
+  Rows with whitespace in อำเภอ: 0
+  Rows with whitespace in ตำบล : 0
+
+--- อำเภอ unique values (durian) ---
+  Unique อำเภอ: ['ด่านมะขามเตี้ย', 'ทองผาภูมิ', 'ท่ามะกา', 'ท่าม่วง', 'บ่อพลอย', 'พนมทวน', 'ศรีสวัสดิ์', 'สังขละบุรี', 'หนองปรือ', 'ห้วยกระเจา', 'เมืองกาญจนบุรี', 'เลาขวัญ', 'ไทรโยค']
+
+--- ตำบล unique values count (durian) ---
+  Unique ตำบล: 66
+============================================================
+  JOIN KEY OVERLAP (อำเภอ_norm x ตำบล_norm)
+============================================================
+  Unique (อำเภอ, ตำบล) pairs in Hotspot data : 31
+  Unique (อำเภอ, ตำบล) pairs in Durian data  : 66
+  Overlapping pairs                           : 31
+  Only in Hotspot (no durian record)          : 0
+  Only in Durian  (no hotspot record)         : 35
+
+--- Sample pairs only in Hotspot ---
+
+--- Sample pairs only in Durian ---
+  ('ด่านมะขามเตี้ย', 'กลอนโด')
+  ('ด่านมะขามเตี้ย', 'จรเข้เผือก')
+  ('ท่ามะกา', 'ดอนขมิ้น')
+  ('ท่ามะกา', 'ดอนชะเอม')
+  ('ท่ามะกา', 'ท่ามะกา')
+  ('ท่ามะกา', 'ท่าไม้')
+  ('ท่ามะกา', 'พงตึก')
+  ('ท่ามะกา', 'พระแท่น')
+  ('ท่ามะกา', 'ยางม่วง')
+  ('ท่ามะกา', 'สนามแย้')
+============================================================
+  END OF PROFILING REPORT
+============================================================
