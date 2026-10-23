@@ -297,7 +297,7 @@ app.layout = html.Div([
                     wide=True,
                 ),
                 chart_card(
-                    "สัดส่วนตามฤดูกาล (คลิกแท่งเพื่อกรอง)",
+                    "สัดส่วนตามฤดูกาล (คลิกส่วนเพื่อกรอง)",
                     dcc.Graph(id="chart-seasonality", style={"height": "225px"}),
                     wide=True,
                 ),
@@ -727,14 +727,20 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
         "ฤดูกาล": ["ฤดูแล้ง (พ.ย.–เม.ย.)", "ฤดูฝน (พ.ค.–ต.ค.)"],
         "จำนวน": [int(df_h["month"].isin(dry_months).sum()), int((~df_h["month"].isin(dry_months)).sum())],
     })
-    fig_seasonality = px.bar(
-        season_counts, x="ฤดูกาล", y="จำนวน", color="ฤดูกาล", text="จำนวน",
+    fig_seasonality = px.pie(
+        season_counts, names="ฤดูกาล", values="จำนวน", color="ฤดูกาล",
+        hole=0.38,
         color_discrete_map={"ฤดูแล้ง (พ.ย.–เม.ย.)": "#F59E0B", "ฤดูฝน (พ.ค.–ต.ค.)": "#38BDF8"},
     )
-    fig_seasonality.update_traces(texttemplate="%{text:,} จุด", textposition="outside")
-    fig_seasonality.update_layout(**get_theme(m=dict(l=35, r=10, t=15, b=30), showlegend=False))
-    fig_seasonality.update_xaxes(gridcolor="#1E293B")
-    fig_seasonality.update_yaxes(gridcolor="#1E293B")
+    fig_seasonality.update_traces(
+        texttemplate="%{label}<br>%{value:,} จุด (%{percent})",
+        textposition="inside",
+        textfont=dict(size=12, color="#0A0E17"),
+        hovertemplate="%{label}<br>%{value:,} จุด (%{percent})<extra></extra>",
+    )
+    fig_seasonality.update_layout(
+        **get_theme(m=dict(l=10, r=10, t=10, b=10), showlegend=False)
+    )
 
     # ── 8. Confidence Donut (Thick Donut Ring with Center Text) ──
     conf_dist = df_h["CONFEDENCE"].value_counts().reset_index()
