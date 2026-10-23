@@ -1,7 +1,7 @@
 """
 Kanchanaburi Wildfire & Durian Observatory Dashboard
 Refined Single-Page Interactive Layout inspired by Global Forest Fire Dashboard (image.png)
-Full Two-Way Cross-Filtering across all Maps, Gauges, Treemaps, Donut Slices, and Tables.
+Global cross-filtering across maps, charts, and tables.
 """
 import sys
 import os
@@ -183,34 +183,8 @@ app.layout = html.Div([
                 html.P("ข้อมูลจุดความร้อนและพื้นที่เพาะปลูกระดับตำบล", className="brand-subtitle"),
             ]),
         ], className="brand-block"),
-        html.Div([
-            html.Div([
-                html.P("จุดความร้อนในช่วงที่เลือก", className="kpi-label"),
-                html.Div(id="kpi-hotspot-value", className="kpi-value"),
-                html.P(id="kpi-hotspot-delta", className="kpi-meta"),
-            ], className="kpi-card kpi-hotspot"),
-            html.Div([
-                html.P("พื้นที่ทุเรียนปีล่าสุดที่เลือก", className="kpi-label"),
-                html.Div(id="kpi-durian-value", className="kpi-value"),
-                html.P(id="kpi-durian-meta", className="kpi-meta"),
-            ], className="kpi-card kpi-durian"),
-            html.Div([
-                html.P("พื้นที่ที่เลือก", className="kpi-label"),
-                html.Div(id="kpi-selected-area", className="kpi-value"),
-                html.P("ขอบเขตการปกครอง", className="kpi-meta"),
-            ], className="kpi-card kpi-area"),
-            html.Div([
-                html.P("คุณภาพข้อมูลจุดความร้อน", className="kpi-label"),
-                html.Div(id="kpi-quality-value", className="kpi-value"),
-                html.P(id="kpi-quality-meta", className="kpi-meta"),
-            ], className="kpi-card kpi-quality"),
-        ], className="kpi-strip"),
     ], className="dashboard-header"),
     html.Main([
-        html.Section([
-            html.H2("💡 ข้อมูลสำคัญจากตัวกรองปัจจุบัน", className="insight-heading"),
-            html.Div(id="key-insights", className="key-insights"),
-        ], className="key-insights-wrap"),
         dbc.Alert([
             html.Strong("⚠️ ข้อจำกัดในการตีความ: "),
             html.Span(CAUSAL_DISCLAIMER),
@@ -289,6 +263,32 @@ app.layout = html.Div([
             ], className="filter-actions"),
         ], className="filter-bar"),
         html.Div([
+            html.Div([
+                html.P("จุดความร้อนในช่วงที่เลือก", className="kpi-label"),
+                html.Div(id="kpi-hotspot-value", className="kpi-value"),
+                html.P(id="kpi-hotspot-delta", className="kpi-meta"),
+            ], className="kpi-card kpi-hotspot"),
+            html.Div([
+                html.P("พื้นที่ทุเรียนปีล่าสุดที่เลือก", className="kpi-label"),
+                html.Div(id="kpi-durian-value", className="kpi-value"),
+                html.P(id="kpi-durian-meta", className="kpi-meta"),
+            ], className="kpi-card kpi-durian"),
+            html.Div([
+                html.P("พื้นที่ที่เลือก", className="kpi-label"),
+                html.Div(id="kpi-selected-area", className="kpi-value"),
+                html.P("ขอบเขตการปกครอง", className="kpi-meta"),
+            ], className="kpi-card kpi-area"),
+            html.Div([
+                html.P("คุณภาพข้อมูลจุดความร้อน", className="kpi-label"),
+                html.Div(id="kpi-quality-value", className="kpi-value"),
+                html.P(id="kpi-quality-meta", className="kpi-meta"),
+            ], className="kpi-card kpi-quality"),
+        ], className="kpi-strip"),
+        html.Section([
+            html.H2("💡 ข้อมูลสำคัญจากตัวกรองปัจจุบัน", className="insight-heading"),
+            html.Div(id="key-insights", className="key-insights"),
+        ], className="key-insights-wrap"),
+        html.Div([
             question_section("1", "จุดความร้อนเกิดขึ้นเมื่อไร?", "answer-when", [
                 chart_card("ช่วงเวลาที่พบจุดความร้อนมาก", html.Div(id="top-hours-list")),
                 chart_card(
@@ -321,7 +321,7 @@ app.layout = html.Div([
                             {"label": "มืด", "value": "carto-darkmatter"},
                             {"label": "ถนน", "value": "open-street-map"},
                         ],
-                        value="satellite",
+                        value="open-street-map",
                         inline=True,
                         className="map-basemap-options",
                     ),
