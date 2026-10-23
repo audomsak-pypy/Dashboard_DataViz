@@ -32,6 +32,7 @@ df_events_all = load_hotspot_events()
 df_joined_all = load_joined_table()
 
 # Fail early if the stored data is not the validated dashboard dataset.
+assert len(df_events_all) == EXPECTED_TOTAL_HOTSPOTS
 assert df_joined_all["hotspot_count"].sum() == EXPECTED_TOTAL_HOTSPOTS
 
 amphoe_opts = sorted(df_events_all["อำเภอ_norm"].dropna().unique().tolist())
@@ -78,7 +79,11 @@ def compute_kpis(filter_state, year_range):
     """Single source of truth for all dashboard headline values."""
     events, joined = filter_dashboard_data(filter_state, year_range)
     hotspot_total = int(len(events))
-    durian_total = float(joined["durian_area_rai"].sum(min_count=1) or 0)
+    durian_year = year_range[1] + 543
+    latest_year_area = joined.loc[
+        joined["พ.ศ."] == durian_year, "durian_area_rai"
+    ].sum(min_count=1)
+    durian_total = None if pd.isna(latest_year_area) else float(latest_year_area)
     quality_count = int(events["CONFEDENCE"].isin(["high", "nominal"]).sum())
     quality_pct = (quality_count / hotspot_total * 100) if hotspot_total else 0.0
 
@@ -103,6 +108,7 @@ def compute_kpis(filter_state, year_range):
         "joined": joined,
         "hotspot_total": hotspot_total,
         "durian_total": durian_total,
+        "durian_year": durian_year,
         "quality_count": quality_count,
         "quality_pct": quality_pct,
         "yoy": yoy,
@@ -419,6 +425,7 @@ app.layout = html.Div([
             html.Strong("⚠️ คำเตือนสำคัญด้านการตีความข้อมูล (Disclaimer): "),
             html.Span(CAUSAL_DISCLAIMER),
         ], className="viya-disclaimer mt-2"),
+        dbc.Alert(id="integrity-warning", color="danger", is_open=False, className="mb-2"),
 
         # ── Global Filter Bar & Interactivity Indicator ────────
         html.Div([
@@ -852,6 +859,8 @@ def render_filter_pills(store, year_range):
 @app.callback(
     Output("header-hotspot-val",      "children"),
     Output("header-durian-val",       "children"),
+    Output("integrity-warning",       "children"),
+    Output("integrity-warning",       "is_open"),
     Output("kpi-hotspot-value",       "children"),
     Output("kpi-hotspot-delta",       "children"),
     Output("kpi-durian-value",        "children"),
@@ -899,20 +908,33 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
     # ── 3. Scorecard values ───────────────────────────────────
     cur_hotspots = metrics["hotspot_total"]
 
-    # Assert the validated total when no cross-filter is active.
-    if not t_filter and not a_filter and not conf_filter and not pa_filter and not m_filter and year_range == [year_ce_min, year_ce_max]:
-        assert cur_hotspots == EXPECTED_TOTAL_HOTSPOTS, f"Hotspot count mismatch: {cur_hotspots} != {EXPECTED_TOTAL_HOTSPOTS}"
+    integrity_warning = None
+    integrity_warning_open = False
+    is_unfiltered = (
+        not any(state.values())
+        and list(year_range) == [year_ce_min, year_ce_max]
+    )
+    if is_unfiltered:
+        joined_hotspot_total = int(df_joined_all["hotspot_count"].sum())
+        if cur_hotspots != len(df_events_all) or cur_hotspots != joined_hotspot_total:
+            integrity_warning = (
+                "Data integrity mismatch: event, joined-table, and headline "
+                f"totals differ ({cur_hotspots:,}, {len(df_events_all):,}, "
+                f"{joined_hotspot_total:,})."
+            )
+            integrity_warning_open = True
 
     cur_durian_rai = metrics["durian_total"]
     yoy = metrics["yoy"]
     quality_pct = metrics["quality_pct"]
     # Header and cards use exactly the same calculated values.
     header_hotspot_text = f"{cur_hotspots:,}"
-    header_durian_text = f"{cur_durian_rai:,.1f} ไร่"
+    durian_display = "⬜ Missing" if cur_durian_rai is None else f"{cur_durian_rai:,.1f} ไร่"
+    header_durian_text = durian_display
     kpi_hotspot_value = f"{cur_hotspots:,} จุด"
     kpi_hotspot_delta = "ไม่มีข้อมูลปีก่อนหน้า" if yoy is None else f"เทียบปีก่อนหน้า: {yoy:+.1f}%"
-    kpi_durian_value = f"{cur_durian_rai:,.1f} ไร่"
-    kpi_durian_meta = f"พ.ศ. {year_range[0] + 543}–{year_range[1] + 543}"
+    kpi_durian_value = durian_display
+    kpi_durian_meta = f"พ.ศ. {metrics['durian_year']}"
     kpi_quality_value = f"{quality_pct:.1f}%"
     kpi_quality_meta = f"High/Nominal {metrics['quality_count']:,} จาก {cur_hotspots:,} จุด"
 
@@ -1038,9 +1060,11 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
 
     group_has = joined_active[joined_active["durian_area_rai"] > 0]
     group_no  = joined_active[joined_active["durian_area_rai"] == 0]
+    group_missing = joined_active[joined_active["durian_area_rai"].isna()]
 
     n_has = len(group_has)
     n_no  = len(group_no)
+    n_missing = len(group_missing)
     avg_has = group_has["hotspot_count"].mean() if n_has > 0 else 0.0
     avg_no  = group_no["hotspot_count"].mean() if n_no > 0 else 0.0
     sum_has = group_has["hotspot_count"].sum()
@@ -1086,13 +1110,12 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
         ], style={"margin": "0 0 6px 0"}),
         html.Div([
             html.Small(
-                f"🔍 หมายเหตุด้านความสมดุลข้อมูล (Sample Size & Confounder): "
-                f"กลุ่มไม่ปลูกมีเพียง {n_no} รายการ เนื่องจากสำนักงานเกษตรจังหวัดรายงานเฉพาะตำบลที่ทำการสำรวจ ส่วนตำบลอื่นๆ ที่ไม่ปรากฏถือเป็นข้อมูล Missing "
-                "และจุดความร้อนส่วนใหญ่กระจุกตัวในป่าอนุรักษ์ขนาดใหญ่ที่อยู่ในเขตการปกครองระดับตำบลเดียวกัน "
-                "ไม่สามารถสรุปเชิงสาเหตุว่าสวนทุเรียนเป็นต้นเหตุของไฟป่าได้",
+                f"ระเบียนพื้นที่ทุเรียนที่บันทึกเป็น 0.0 ไร่: {n_no:,} ตำบล-ปี; "
+                f"ระเบียนที่ไม่มีค่า (Missing): {n_missing:,} ตำบล-ปี",
                 style={"color": "#94A3B8", "lineHeight": "1.4", "display": "block"}
             )
         ], style={"backgroundColor": "#0E1624", "padding": "6px 8px", "borderRadius": "4px", "borderLeft": "3px solid #F59E0B"}),
+        html.Small(CAUSAL_DISCLAIMER, style={"color": "#FCD34D", "lineHeight": "1.4"}),
     ])
 
     # ── 11. Spatial Map (Satellite / Dark Matter) ───────────────
@@ -1259,6 +1282,8 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
     return (
         header_hotspot_text,
         header_durian_text,
+        integrity_warning,
+        integrity_warning_open,
         kpi_hotspot_value,
         kpi_hotspot_delta,
         kpi_durian_value,

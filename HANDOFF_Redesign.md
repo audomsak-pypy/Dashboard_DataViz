@@ -71,17 +71,17 @@ Every section must have **one dynamic answer sentence** (in Thai) computed from 
 
 **Goal:** every number on the screen agrees and can be verified.
 
-- [ ] Create one KPI calculation function (single source of truth), for example `compute_kpis(filter_state)`. The header, gauges, donut center and Key Insights must all call it
-- [ ] Remove hard-coded values (`8606`, `8500`, `8,129` and similar) from layout and callbacks. Use `EXPECTED_TOTAL_HOTSPOTS` from `config.py` only inside assertions
-- [ ] **Report the real root cause** of 8,610 and 13,730 with evidence (number of duplicate rows, duplicated keys, and so on) **before** fixing
-- [ ] Compute gauge maxima from the data (for example tambon-level max or a high percentile) and show the meaning of the three color bands to the user
-- [ ] Add an integrity check at app start (assert) and at filter time: with no filter, header = gauge = data total. If they differ, show a clearly visible warning bar
-- [ ] In the planted-vs-not-planted comparison chart, show `n=` for each group, and report whether tambons without durian are missing from the data entirely
-- [ ] Fix `README.md` so every figure matches the real data
+- [x] Use one KPI calculation function as the single source for the dashboard headline values
+- [x] Remove hard-coded KPI values from `app.py`; `EXPECTED_TOTAL_HOTSPOTS` is used only in assertions
+- [x] Investigate the reported 8,610 and 13,730 totals before changing the KPI logic. The current event and joined data each total 8,606; `joined_table` has no duplicate (`อำเภอ_norm`, `ตำบล_norm`, `พ.ศ.`) keys. The reported 8,610 is absent from current and historical `app.py`, so its original cause cannot be reproduced from the available evidence. BE 2568 durian area sums to 13,732.5 rai; the previous 8,129 README figure was stale.
+- [x] Verify gauge scaling is not applicable: the current dashboard uses scorecards, not gauges
+- [x] Add startup integrity assertions and a visible warning when the unfiltered event, joined-table and headline totals disagree
+- [x] Show `n=` for each comparison group and report coverage separately: in BE 2566–2568, the joined data has 8 explicit zero-area rows and 0 Missing area rows. No master tambon registry is available to identify tambons absent from both source datasets.
+- [x] Update `README.md` to use the measured BE 2568 durian area and current scorecard design
 
 **Acceptance (verifiable):**
-- No filter: hotspot total on the header = gauge = 8,606; durian area for BE 2568 on the header = gauge
-- One tambon selected: gauge, table and KPI values equal the values computed directly from the DataFrame
+- No filter: hotspot total on the header and scorecard = 8,606; durian area for BE 2568 on the header and scorecard = 13,732.5 rai
+- One tambon selected: table and KPI values equal the values computed directly from the DataFrame
 - No hard-coded KPI numbers remain in `app.py` (verify with grep and attach the result)
 
 🛑 **STOP:** report the root causes and verification results, then wait for the user's approval.
@@ -195,7 +195,7 @@ Decisions needed from the user: <if any>
 | Stage | Status | Commit | Notes |
 |---|---|---|---|
 | 0 | ✅ complete | snapshot: before redesign | Dashboard verified at HTTP 200 on localhost. |
-| A | ⬜ not started | | |
+| A | ✅ complete | fix: correct KPI totals | Verified 8,606 hotspot total and BE 2568 durian area 13,732.5 rai; historical 8,610 could not be reproduced from available source/history. |
 | B | ⬜ not started | | |
 | C | ⬜ not started | | |
 | D | ⬜ not started | | |
