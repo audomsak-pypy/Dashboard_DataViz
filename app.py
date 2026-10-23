@@ -368,15 +368,15 @@ app.layout = html.Div([
                     ], className="map-controls"),
                 ),
                 chart_card(
-                    "ระดับความเชื่อมั่น (คลิกวงแหวนเพื่อกรอง)",
+                    "ระดับความเชื่อมั่นของจุดความร้อน",
                     dcc.Graph(id="chart-conf-donut", style={"height": "240px"}),
                 ),
                 chart_card(
-                    "จุดความร้อนแยกตามประเภทป่า (คลิกแท่งเพื่อกรอง)",
+                    "จุดความร้อนแยกตามประเภทป่า",
                     dcc.Graph(id="chart-pa-treemap", style={"height": "240px"}),
                 ),
                 chart_card(
-                    "10 ตำบลที่มีจุดความร้อนสูงสุด (คลิกแท่งเพื่อเลือกตำบล)",
+                    "10 ตำบลที่มีจุดความร้อนสูงสุด",
                     dcc.Graph(id="chart-top-tambon", style={"height": "300px"}),
                     wide=True,
                 ),
@@ -410,14 +410,14 @@ app.layout = html.Div([
                     comparison_with_disclaimer(html.Div(id="dynamic-context-card")),
                 ),
                 chart_card(
-                    "ตารางพื้นที่ทุเรียนรายตำบล (คลิกแถวเพื่อกรอง)",
+                    "ตารางพื้นที่ทุเรียนรายตำบล-ปี",
                     comparison_with_disclaimer(html.Div(id="durian-table-container")),
                     wide=True,
                 ),
             ], "section-durian"),
             question_section("4", "แนวโน้มข้อมูลตามช่วงเวลา", "answer-trends", [
                 chart_card(
-                    "พื้นที่ปลูกทุเรียนรายปี (แสดงเฉพาะปีที่มีข้อมูล)",
+                    "พื้นที่ปลูกทุเรียนรายปี",
                     dcc.Graph(id="chart-durian-trend", style={"height": "300px"}),
                     wide=True,
                 ),
