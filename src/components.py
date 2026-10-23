@@ -1,18 +1,16 @@
 """
-Reusable UI Components: Gauges, KPI Cards, Disclaimers, and Chart Builders.
+Reusable Professional Dark UI Components: Gauges, KPI Cards, and Notices.
 """
 
 import streamlit as st
 import plotly.graph_objects as go
-import plotly.express as px
-import pandas as pd
 from src.config import (
-    COLOR_FIRE_ORANGE,
-    COLOR_FIRE_RED,
-    COLOR_DURIAN_GREEN,
-    COLOR_DURIAN_YELLOW,
-    COLOR_FOREST_DARK,
-    COLOR_ACCENT_BLUE,
+    COLOR_FIRE_PRIMARY,
+    COLOR_FIRE_ACCENT,
+    COLOR_CARD_DARK,
+    COLOR_BORDER_DARK,
+    COLOR_TEXT_LIGHT,
+    COLOR_MUTED_GRAY,
     BRD_CAUSAL_DISCLAIMER,
     MAP_CRS_DISCLAIMER,
     ZERO_MISSING_EXPLANATION
@@ -20,64 +18,71 @@ from src.config import (
 
 
 def render_disclaimer_banner(kind="all"):
-    """Renders prominent caution alerts on the Streamlit interface."""
+    """Renders sleek, minimalist academic disclaimers without emojis."""
     if kind in ("all", "causal"):
-        st.warning(BRD_CAUSAL_DISCLAIMER)
+        st.markdown(
+            f"""
+            <div style="background-color: #1A1414; border: 1px solid #7F1D1D; border-left: 4px solid #EF4444; 
+                        padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 0.88rem; color: #FCA5A5;">
+                {BRD_CAUSAL_DISCLAIMER}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
     if kind in ("all", "crs"):
-        st.info(MAP_CRS_DISCLAIMER)
+        st.markdown(
+            f"""
+            <div style="background-color: #161B22; border: 1px solid #30363D; border-left: 4px solid #FF7043; 
+                        padding: 10px 14px; border-radius: 6px; margin-bottom: 14px; font-size: 0.85rem; color: #C9D1D9;">
+                {MAP_CRS_DISCLAIMER}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
     if kind in ("all", "zero_missing"):
-        with st.expander("ℹ️ รายละเอียดคำจำกัดความข้อมูล (Zero vs Missing)", expanded=False):
-            st.markdown(ZERO_MISSING_EXPLANATION)
+        st.markdown(
+            f"""
+            <div style="background-color: #161B22; border: 1px solid #30363D; border-left: 4px solid #FFA726; 
+                        padding: 10px 14px; border-radius: 6px; margin-bottom: 14px; font-size: 0.85rem; color: #C9D1D9;">
+                {ZERO_MISSING_EXPLANATION}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 
-def create_gauge_meter(value, max_val, title, unit="", color=COLOR_FIRE_ORANGE):
+def create_gauge_meter(value, max_val, title, unit="", color=COLOR_FIRE_PRIMARY):
     """
-    Creates an aesthetic semi-circular gauge chart matching the wireframe design.
+    Creates an executive dark semi-circular gauge chart.
     """
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=value,
         domain={'x': [0, 1], 'y': [0, 1]},
-        title={'text': title, 'font': {'size': 14, 'color': '#333'}},
-        number={'suffix': f" {unit}", 'font': {'size': 20, 'weight': 'bold'}},
+        title={'text': title, 'font': {'size': 13, 'color': COLOR_MUTED_GRAY, 'family': 'sans-serif'}},
+        number={'suffix': f" {unit}", 'font': {'size': 22, 'color': COLOR_TEXT_LIGHT, 'weight': 'bold'}},
         gauge={
-            'axis': {'range': [0, max(max_val, value * 1.1 or 10)], 'tickwidth': 1, 'tickcolor': "#888"},
-            'bar': {'color': color},
-            'bgcolor': "#EEEEEE",
+            'axis': {
+                'range': [0, max(max_val, value * 1.1 or 10)],
+                'tickwidth': 1,
+                'tickcolor': COLOR_BORDER_DARK,
+                'tickfont': {'color': COLOR_MUTED_GRAY, 'size': 10}
+            },
+            'bar': {'color': color, 'thickness': 0.75},
+            'bgcolor': "#21262D",
             'borderwidth': 1,
-            'bordercolor': "#CCCCCC",
+            'bordercolor': COLOR_BORDER_DARK,
             'steps': [
-                {'range': [0, max_val * 0.5], 'color': '#FFF3E0'},
-                {'range': [max_val * 0.5, max_val], 'color': '#FFE0B2'}
+                {'range': [0, max_val * 0.5], 'color': '#211B1B'},
+                {'range': [max_val * 0.5, max_val], 'color': '#381C1C'}
             ]
         }
     ))
     fig.update_layout(
-        height=180,
-        margin=dict(l=15, r=15, t=35, b=10),
+        template="plotly_dark",
+        height=170,
+        margin=dict(l=15, r=15, t=30, b=10),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)"
     )
     return fig
-
-
-def create_sparkline_svg(values, width=120, height=30, color="#FF5722"):
-    """
-    Generates a tiny lightweight SVG sparkline for table cells.
-    """
-    if not values or len(values) < 2:
-        return "—"
-    min_v, max_v = min(values), max(values)
-    span = max_v - min_v if max_v != min_v else 1.0
-    pts = []
-    step = width / (len(values) - 1)
-    for i, v in enumerate(values):
-        x = i * step
-        y = height - ((v - min_v) / span * (height - 6) + 3)
-        pts.append(f"{x:.1f},{y:.1f}")
-    polyline_pts = " ".join(pts)
-    return (
-        f'<svg width="{width}" height="{height}" style="vertical-align:middle;">'
-        f'<polyline fill="none" stroke="{color}" stroke-width="2" points="{polyline_pts}" />'
-        f'</svg>'
-    )
