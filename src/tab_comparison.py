@@ -78,14 +78,22 @@ def render_tab_comparison(df_joined: pd.DataFrame):
 
     fig_dual.update_layout(
         template="plotly_dark",
-        height=400,
-        margin=dict(l=20, r=20, t=35, b=20),
+        height=420,
+        margin=dict(l=20, r=20, t=75, b=65),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         xaxis=dict(title="ปี พ.ศ.", tickmode='array', tickvals=years_comp),
         yaxis=dict(title="พื้นที่เพาะปลูกทุเรียน (ไร่)", side="left", showgrid=True),
         yaxis2=dict(title="จำนวนจุดความร้อน (จุด)", side="right", overlaying="y", showgrid=False),
-        legend=dict(orientation="h", yanchor="bottom", y=1.03, xanchor="right", x=1)
+        title=dict(x=0.02, y=0.95, xanchor='left', yanchor='top'),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.22,
+            xanchor="center",
+            x=0.5,
+            title_text=""
+        )
     )
     st.plotly_chart(fig_dual, use_container_width=True, config=PLOTLY_CONFIG)
 
@@ -118,10 +126,11 @@ def render_tab_comparison(df_joined: pd.DataFrame):
             template="plotly_dark"
         )
         fig_bubble.update_layout(
-            height=420,
-            margin=dict(l=10, r=10, t=35, b=10),
+            height=430,
+            margin=dict(l=15, r=15, t=70, b=20),
             paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)"
+            plot_bgcolor="rgba(0,0,0,0)",
+            title=dict(x=0.02, y=0.96, xanchor='left', yanchor='top')
         )
         st.plotly_chart(fig_bubble, use_container_width=True, config=PLOTLY_CONFIG)
 

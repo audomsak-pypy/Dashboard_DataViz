@@ -177,10 +177,18 @@ def render_tab_hotspots(df_events: pd.DataFrame, total_expected: int):
             template="plotly_dark"
         )
         fig_wave.update_layout(
-            margin=dict(l=10, r=10, t=40, b=20),
+            margin=dict(l=15, r=15, t=80, b=65),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            title=dict(x=0.02, y=0.95, xanchor='left', yanchor='top'),
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.25,
+                xanchor="center",
+                x=0.5,
+                title_text=""
+            )
         )
         st.plotly_chart(fig_wave, use_container_width=True, config=PLOTLY_CONFIG)
 
@@ -200,9 +208,10 @@ def render_tab_hotspots(df_events: pd.DataFrame, total_expected: int):
             template="plotly_dark"
         )
         fig_hour.update_layout(
-            margin=dict(l=10, r=10, t=40, b=20),
+            margin=dict(l=15, r=15, t=65, b=25),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
+            title=dict(x=0.02, y=0.95, xanchor='left', yanchor='top'),
             coloraxis_showscale=False,
             xaxis=dict(tickmode='linear', tick0=0, dtick=2)
         )
@@ -222,8 +231,9 @@ def render_tab_hotspots(df_events: pd.DataFrame, total_expected: int):
                 template="plotly_dark"
             )
             fig_donut.update_layout(
-                margin=dict(l=5, r=5, t=35, b=5),
+                margin=dict(l=10, r=10, t=65, b=15),
                 paper_bgcolor="rgba(0,0,0,0)",
+                title=dict(x=0.5, y=0.96, xanchor='center', yanchor='top'),
                 showlegend=False
             )
             st.plotly_chart(fig_donut, use_container_width=True, config=PLOTLY_CONFIG)
@@ -240,8 +250,9 @@ def render_tab_hotspots(df_events: pd.DataFrame, total_expected: int):
                 template="plotly_dark"
             )
             fig_conf.update_layout(
-                margin=dict(l=5, r=5, t=35, b=5),
+                margin=dict(l=10, r=10, t=65, b=15),
                 paper_bgcolor="rgba(0,0,0,0)",
+                title=dict(x=0.5, y=0.96, xanchor='center', yanchor='top'),
                 showlegend=False
             )
             st.plotly_chart(fig_conf, use_container_width=True, config=PLOTLY_CONFIG)
@@ -307,10 +318,18 @@ def render_tab_hotspots(df_events: pd.DataFrame, total_expected: int):
 
             fig_map.update_layout(
                 map_style="carto-darkmatter",
-                height=520,
-                margin=dict(l=5, r=5, t=35, b=5),
+                height=560,
+                margin=dict(l=10, r=10, t=80, b=50),
                 paper_bgcolor="rgba(0,0,0,0)",
-                legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1)
+                title=dict(x=0.02, y=0.96, xanchor='left', yanchor='top'),
+                legend=dict(
+                    orientation="h",
+                    yanchor="top",
+                    y=-0.08,
+                    xanchor="center",
+                    x=0.5,
+                    title_text=""
+                )
             )
             st.plotly_chart(fig_map, use_container_width=True, config=PLOTLY_CONFIG)
         else:
@@ -329,9 +348,10 @@ def render_tab_hotspots(df_events: pd.DataFrame, total_expected: int):
             template="plotly_dark"
         )
         fig_tree.update_layout(
-            height=300,
-            margin=dict(l=5, r=5, t=35, b=5),
-            paper_bgcolor="rgba(0,0,0,0)"
+            height=320,
+            margin=dict(l=10, r=10, t=65, b=15),
+            paper_bgcolor="rgba(0,0,0,0)",
+            title=dict(x=0.02, y=0.96, xanchor='left', yanchor='top')
         )
         st.plotly_chart(fig_tree, use_container_width=True, config=PLOTLY_CONFIG)
 
@@ -358,10 +378,11 @@ def render_tab_hotspots(df_events: pd.DataFrame, total_expected: int):
             template="plotly_dark"
         )
         fig_st.update_layout(
-            height=400,
-            margin=dict(l=10, r=10, t=35, b=10),
+            height=420,
+            margin=dict(l=15, r=15, t=65, b=20),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
+            title=dict(x=0.02, y=0.96, xanchor='left', yanchor='top'),
             coloraxis_showscale=False
         )
         st.plotly_chart(fig_st, use_container_width=True, config=PLOTLY_CONFIG)

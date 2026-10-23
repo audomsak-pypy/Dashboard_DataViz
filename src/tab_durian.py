@@ -95,13 +95,21 @@ def render_tab_durian(df_durian: pd.DataFrame, df_joined: pd.DataFrame):
         ))
         fig_trend.update_layout(
             template="plotly_dark",
-            height=380,
-            margin=dict(l=10, r=10, t=35, b=10),
+            height=400,
+            margin=dict(l=15, r=15, t=75, b=65),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
             xaxis=dict(tickmode='linear', tick0=2561, dtick=1),
             yaxis=dict(title="พื้นที่เพาะปลูก (ไร่)"),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            title=dict(x=0.02, y=0.95, xanchor='left', yanchor='top'),
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.22,
+                xanchor="center",
+                x=0.5,
+                title_text=""
+            )
         )
         st.plotly_chart(fig_trend, use_container_width=True, config=PLOTLY_CONFIG)
 
@@ -123,10 +131,11 @@ def render_tab_durian(df_durian: pd.DataFrame, df_joined: pd.DataFrame):
             template="plotly_dark"
         )
         fig_amp.update_layout(
-            height=380,
-            margin=dict(l=10, r=10, t=35, b=10),
+            height=400,
+            margin=dict(l=15, r=15, t=65, b=20),
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
+            title=dict(x=0.02, y=0.96, xanchor='left', yanchor='top'),
             coloraxis_showscale=False
         )
         st.plotly_chart(fig_amp, use_container_width=True, config=PLOTLY_CONFIG)
