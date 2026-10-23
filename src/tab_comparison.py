@@ -7,7 +7,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 from scipy import stats
-from src.components import render_disclaimer_banner
 from src.config import (
     COLOR_FIRE_PRIMARY,
     COLOR_FIRE_ACCENT,
@@ -21,9 +20,6 @@ from src.config import (
 def render_tab_comparison(df_joined: pd.DataFrame):
     st.markdown("### การเปรียบเทียบเชิงพื้นที่และสถิติ (Spatial & Statistical Comparison)")
     st.caption("การวิเคราะห์ความสัมพันธ์เชิงปริมาณระดับตำบล และการทดสอบนัยสำคัญทางสถิติ (Mann-Whitney U Test)")
-
-    # Mandatory Academic Disclaimer
-    render_disclaimer_banner(kind="causal")
 
     years_comp = [2566, 2567, 2568]
     col_f1, col_f2 = st.columns(2)

@@ -6,7 +6,7 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-from src.components import render_disclaimer_banner, create_gauge_meter
+from src.components import create_gauge_meter
 from src.config import (
     COLOR_FIRE_PRIMARY,
     COLOR_FIRE_ACCENT,
@@ -21,42 +21,6 @@ from src.config import (
 def render_tab_hotspots(df_events: pd.DataFrame, total_expected: int):
     st.markdown("### ภาพรวมจุดความร้อนในพื้นที่ป่าอนุรักษ์ (Hotspots Overview)")
     st.caption("การกระจายตัวเชิงพื้นที่และเชิงเวลาของจุดความร้อนในเขตป่าอนุรักษ์ จังหวัดกาญจนบุรี")
-
-    # Executive Summary & Dashboard Guide
-    with st.expander("Executive Summary & Dashboard Guide", expanded=True):
-        st.markdown("""
-        <div style="color: #F0F6FC; font-size: 0.9rem; line-height: 1.6;">
-            <div style="margin-bottom: 12px;">
-                <span style="color: #FF7043; font-weight: 600; font-size: 0.92rem;">Dashboard Objective:</span><br/>
-                สำรวจและเปรียบเทียบข้อมูลจุดความร้อน (Hotspots) ในพื้นที่ป่าอนุรักษ์ กับข้อมูลพื้นที่เพาะปลูกทุเรียนในจังหวัดกาญจนบุรี ในมิติเชิงพื้นที่ (Spatial) และเชิงเวลา (Temporal) โดยมุ่งเน้นการแสดงข้อเท็จจริงอย่างโปร่งใส และปราศจากการสรุปข้อสมมติฐานเชิงสาเหตุ (Strictly without making causal inferences)
-            </div>
-            <div style="border-top: 1px solid #30363D; padding-top: 12px; margin-top: 10px;">
-                <span style="color: #FFA726; font-weight: 600; font-size: 0.92rem;">Analytical Guide (Chart-to-Question Mapping)</span>
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 10px;">
-                    <div style="background-color: #0E1117; border: 1px solid #30363D; border-left: 3px solid #E53935; padding: 12px 14px; border-radius: 6px;">
-                        <div style="color: #E53935; font-weight: 600; font-size: 0.85rem; margin-bottom: 6px;">Spatial & Location Analysis</div>
-                        <div style="color: #C9D1D9; font-size: 0.82rem; line-height: 1.45;">
-                            แผนที่พิกัด (Geographic Map) และแผนที่ความหนาแน่น (Heatmap) ใช้ตอบคำถามเกี่ยวกับพื้นที่วิกฤต (Critical Risk Areas) และการกระจุกตัวของจุดความร้อนรายตำบล/เขตป่าอนุรักษ์
-                        </div>
-                    </div>
-                    <div style="background-color: #0E1117; border: 1px solid #30363D; border-left: 3px solid #FF7043; padding: 12px 14px; border-radius: 6px;">
-                        <div style="color: #FF7043; font-weight: 600; font-size: 0.85rem; margin-bottom: 6px;">Temporal Trends Analysis</div>
-                        <div style="color: #C9D1D9; font-size: 0.82rem; line-height: 1.45;">
-                            แผนภูมิรายเดือน (Seasonal Wave) และรายชั่วโมง (Hourly Breakdown) ใช้ตอบคำถามเกี่ยวกับช่วงพีคของฤดูกาลเกิดไฟป่า (Peak Fire Seasons) และรูปแบบการเกิดรายวัน (Daily Patterns)
-                        </div>
-                    </div>
-                    <div style="background-color: #0E1117; border: 1px solid #30363D; border-left: 3px solid #FFA726; padding: 12px 14px; border-radius: 6px;">
-                        <div style="color: #FFA726; font-weight: 600; font-size: 0.85rem; margin-bottom: 6px;">Statistical & Comparative Analysis (Tab 3)</div>
-                        <div style="color: #C9D1D9; font-size: 0.82rem; line-height: 1.45;">
-                            การทดสอบ Mann-Whitney U Test และแผนภูมิเปรียบเทียบสองแกน (Dual-Axis) ใช้ตอบคำถามว่ามีความแตกต่างอย่างมีนัยสำคัญของจุดความร้อนระหว่างตำบลที่มีและไม่มีการปลูกทุเรียนหรือไม่
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    render_disclaimer_banner(kind="crs")
 
     # Filters
     with st.expander("ตัวกรองข้อมูล (Data Filters)", expanded=True):

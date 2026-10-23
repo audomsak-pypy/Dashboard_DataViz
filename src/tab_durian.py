@@ -6,7 +6,6 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-from src.components import render_disclaimer_banner
 from src.config import (
     COLOR_FIRE_PRIMARY,
     COLOR_FIRE_ACCENT,
@@ -19,8 +18,6 @@ from src.config import (
 def render_tab_durian(df_durian: pd.DataFrame, df_joined: pd.DataFrame):
     st.markdown("### ข้อมูลพื้นที่เพาะปลูกทุเรียน (Durian Cultivation)")
     st.caption("การสำรวจพื้นที่เพาะปลูกทุเรียน จังหวัดกาญจนบุรี (พ.ศ. 2561 - 2568) โดยสำนักงานเกษตรจังหวัดฯ")
-
-    render_disclaimer_banner(kind="zero_missing")
 
     # Filters
     col_f1, col_f2 = st.columns(2)
