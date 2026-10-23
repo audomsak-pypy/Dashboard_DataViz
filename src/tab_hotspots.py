@@ -216,8 +216,8 @@ def render_tab_hotspots(df_events: pd.DataFrame, total_expected: int):
         st.markdown("#### แผนที่พิกัดจุดความร้อน (Geographic Map)")
 
         if count_filtered > 0:
-            # Dark basemap Mapbox Scatter
-            fig_map = px.scatter_mapbox(
+            # Dark basemap Map Scatter
+            fig_map = px.scatter_map(
                 filtered_df,
                 lat='LAT',
                 lon='LONG',
@@ -235,7 +235,7 @@ def render_tab_hotspots(df_events: pd.DataFrame, total_expected: int):
                     'LAT': ':.4f',
                     'LONG': ':.4f'
                 },
-                mapbox_style="carto-darkmatter",
+                map_style="carto-darkmatter",
                 color_discrete_sequence=PLOTLY_FIRE_SEQUENCE,
                 title=f"การกระจุกตัวของจุดความร้อน ({count_filtered:,} จุด)",
                 template="plotly_dark"

@@ -136,6 +136,34 @@ def main():
     df_joined = data['joined']
     total_expected = data['total_hotspots']
 
+    # Executive Summary (Objective & Key Insights)
+    st.markdown("""
+    <div style="background-color: #161B22; border: 1px solid #30363D; border-left: 4px solid #E53935; 
+                border-radius: 8px; padding: 18px 22px; margin-top: 14px; margin-bottom: 24px;">
+        <div style="color: #F0F6FC; font-size: 1.02rem; font-weight: 600; margin-bottom: 12px; letter-spacing: 0.3px;">
+            Executive Summary
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1.15fr; gap: 24px;">
+            <div>
+                <div style="color: #FF7043; font-weight: 600; font-size: 0.88rem; margin-bottom: 4px;">
+                    วัตถุประสงค์ของ Dashboard (Objective)
+                </div>
+                <div style="color: #C9D1D9; font-size: 0.86rem; line-height: 1.5;">
+                    เพื่อสำรวจและเปรียบเทียบข้อมูลจุดความร้อน (Hotspot) ในพื้นที่ป่าอนุรักษ์ กับข้อมูลพื้นที่เพาะปลูกทุเรียนในจังหวัดกาญจนบุรี เชิงพื้นที่และเชิงเวลาอย่างโปร่งใส
+                </div>
+            </div>
+            <div>
+                <div style="color: #FFA726; font-weight: 600; font-size: 0.88rem; margin-bottom: 4px;">
+                    ประโยชน์ที่ได้รับ (Key Insights)
+                </div>
+                <div style="color: #C9D1D9; font-size: 0.86rem; line-height: 1.5;">
+                    ทำให้ทราบ 'จุดวิกฤต' เชิงพื้นที่, แนวโน้มการเกิดไฟป่าตามช่วงเวลา/ฤดูกาล, และปริมาณภาระงานของแต่ละสถานีควบคุมไฟป่า เพื่อนำไปใช้เป็นข้อมูลสนับสนุนการวางแผนจัดสรรกำลังคนและเฝ้าระวังได้อย่างแม่นยำ
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     # Tab Navigation (Clean Minimalist Labels without Emojis)
     tab1, tab2, tab3 = st.tabs([
         "ภาพรวมจุดความร้อน (Hotspots Overview)",
