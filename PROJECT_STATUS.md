@@ -1,0 +1,51 @@
+# Project Status: Kanchanaburi Interactive Wildfire & Durian Dashboard
+
+**Project Type:** Python (Streamlit + Plotly) Interactive Dashboard  
+**Dataset:** จุดความร้อน (Hotspots) ป่าอนุรักษ์ & พื้นที่ปลูกทุเรียน จ.กาญจนบุรี  
+**Last Updated:** 2026-10-23  
+
+---
+
+## 📊 Summary of Phases & Progress
+
+| Phase | Milestone | Status | Key Deliverables |
+|:---:|:---|:---:|:---|
+| **Phase 1** | Data Profiling & Validation | 🟢 Completed | สำรวจข้อมูล 8,606 จุด, ตรวจสอบ Encoding (`utf-8-sig`), Schema, รูปแบบเวลา/วันที่ |
+| **Phase 2** | Data Model Preparation & Join Logic | 🟢 Completed | สกัดปี พ.ศ., แปลงเวลา `HH:MM`, ทำความสะอาด Whitespace, Outer Join โดยผลรวม Hotspot = 8,606 คงที่ |
+| **Phase 3** | Project Architecture & Core Modules | 🟢 Completed | วางโครงสร้างโมดูล `src/config.py`, `src/data_loader.py`, `src/components.py` |
+| **Phase 4** | Tab 1: Hotspot Overview (Spatial & Temporal) | 🟢 Completed | แผนที่พิกัด OpenStreetMap, มาตรวัด Gauge, แผนภูมิกระจายตามชั่วโมง/เดือน, สถานีรับผิดชอบ, Treemap & Donut |
+| **Phase 5** | Tab 2: Durian Cultivation Overview | 🟢 Completed | แนวโน้ม พ.ศ. 2561-2568, ตารางจัดอันดับพื้นที่ (ไร่) พร้อมแยก 0.0 vs Null ชัดเจน |
+| **Phase 6** | Tab 3: Spatial & Temporal Comparison & Stats | 🟢 Completed | Dual-axis line chart, บับเบิลชาร์ต, การทดสอบ Mann-Whitney U Test, ข้อความปฏิเสธความรับผิดชอบ (Disclaimer) ครบถ้วน |
+| **Phase 7** | Verification, Polishing & Documentation | 🟢 Completed | ทดสอบโหลดโมดูลและฟังก์ชันสำเร็จ 100%, สร้าง `requirements.txt` และ `README.md` |
+
+---
+
+## 📝 Step-by-Step Execution Log
+
+### Step 1: Environment & Dependency Check
+- [x] ตรวจสอบ Python 3.11 และไลบรารีพื้นฐาน (streamlit, plotly, pandas)
+- [x] ติดตั้งไลบรารีทางสถิติ `scipy` สำหรับ Mann-Whitney U Test
+
+### Step 2: Data Profiling & Data Model Validation
+- [x] ตรวจสอบ Encoding ของไฟล์ CSV (`cleaned_dataset_Wildfire.csv` และ `wildfire_point.csv` ใช้ `utf-8-sig`)
+- [x] ยืนยันยอดแถว Wildfire รวม = 8,606 จุด
+- [x] พัฒนาตรรกะการแปลงวันที่ภาษาไทย (ว/ด/ป -> พ.ศ. 2566, 2567, 2568)
+- [x] พัฒนาตรรกะแปลงเวลาจุดทศนิยมเป็นเวลามาตรฐาน `HH:MM` และ `hour_of_day`
+- [x] ยืนยันการจัดการความไม่สมบูรณ์และ Whitespace ของอำเภอและตำบล (31 ตำบลตรงกัน 100%)
+- [x] ทดสอบการรวบรวม (Aggregation) และ Outer Join โดยคงค่า `hotspot_count = 8,606`
+
+### Step 3: Core Application Architecture
+- [x] สร้างโมดูล `src/config.py` กำหนดค่าคงที่ โทนสี ธีม สไตล์ และข้อความปฏิเสธความรับผิดชอบ
+- [x] สร้างโมดูล `src/data_loader.py` สำหรับโหลดและประมวลผลข้อมูลด้วย `@st.cache_data` พร้อมระบบ Assert ความสมบูรณ์ของยอด 8,606 จุด
+- [x] สร้างโมดูล `src/components.py` คอมโพเนนต์ UI (Gauge meters, Metric Cards, Disclaimer banners)
+
+### Step 4: Dashboard Tabs Implementation
+- [x] สร้าง `src/tab_hotspots.py` (Tab 1: มาตรวัด Gauge, แผนที่พิกัด, Temporal wave, Hourly breakdown, Treemap, Donut, Station Workload)
+- [x] สร้าง `src/tab_durian.py` (Tab 2: แนวโน้มพื้นที่ปลูกทุเรียนรายปี พ.ศ. 2561-2568, ตารางจัดอันดับตำบล พร้อมแยก 0.0 ไร่ vs Null)
+- [x] สร้าง `src/tab_comparison.py` (Tab 3: Dual-axis chart, Bubble chart, การทดสอบ Mann-Whitney U Test และรายงานค่าสถิติเชิงลึก)
+- [x] สร้าง `app.py` เชื่อมโยงทุกแท็บเข้าด้วยกันพร้อม Header, Integrity badge, และ Disclaimer
+
+### Step 5: Testing & Documentation
+- [x] รันทดสอบความถูกต้องของโมดูลทั้งหมด (`src/data_loader.py`, `src/tab_*.py`) ปราศจาก Error
+- [x] สร้าง `requirements.txt`
+- [x] สร้าง `README.md` อธิบายสถาปัตยกรรม วิธีการติดตั้ง และการใช้งาน

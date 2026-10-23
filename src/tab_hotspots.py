@@ -1,0 +1,281 @@
+"""
+Tab 1: Hotspot Overview (Spatial & Temporal Analytics)
+Strict compliance with BRD.md Section 4 & Research Questions 1, 4, 7, 8.
+"""
+
+import streamlit as st
+import plotly.express as px
+import plotly.graph_objects as go
+import pandas as pd
+from src.components import render_disclaimer_banner, create_gauge_meter
+from src.config import (
+    COLOR_FIRE_ORANGE,
+    COLOR_FIRE_RED,
+    COLOR_FOREST_DARK,
+    COLOR_ACCENT_BLUE
+)
+
+
+def render_tab_hotspots(df_events: pd.DataFrame, total_expected: int):
+    st.markdown("### 🔥 Tab 1: ภาพรวมจุดความร้อนในพื้นที่ป่าอนุรักษ์ (Hotspot Overview)")
+    st.caption("สำรวจการกระจายตัวเชิงพื้นที่ (Spatial) และเชิงเวลา (Temporal) ของจุดความร้อนในเขตป่าอนุรักษ์ จ.กาญจนบุรี")
+
+    render_disclaimer_banner(kind="crs")
+
+    # --- SIDEBAR / TOP FILTERS ---
+    with st.expander("🔍 ตัวกรองข้อมูลจุดความร้อน (Hotspot Filters)", expanded=True):
+        col_f1, col_f2, col_f3, col_f4 = st.columns(4)
+
+        with col_f1:
+            all_years = sorted(df_events['พ.ศ.'].dropna().unique())
+            selected_years = st.multiselect("📅 ปี พ.ศ.", options=all_years, default=all_years)
+
+        with col_f2:
+            all_amphoe = sorted(df_events['อำเภอ_norm'].dropna().unique())
+            selected_amphoe = st.multiselect("🏛️ อำเภอ", options=all_amphoe, default=[])
+
+        with col_f3:
+            if selected_amphoe:
+                available_tambon = sorted(
+                    df_events[df_events['อำเภอ_norm'].isin(selected_amphoe)]['ตำบล_norm'].dropna().unique()
+                )
+            else:
+                available_tambon = sorted(df_events['ตำบล_norm'].dropna().unique())
+            selected_tambon = st.multiselect("🏘️ ตำบล", options=available_tambon, default=[])
+
+        with col_f4:
+            all_forest_types = sorted(df_events['ประเภทป่าอนุรักษ์'].dropna().unique())
+            selected_forest_types = st.multiselect("🌲 ประเภทป่าอนุรักษ์", options=all_forest_types, default=[])
+
+    # Apply filters
+    filtered_df = df_events.copy()
+    if selected_years:
+        filtered_df = filtered_df[filtered_df['พ.ศ.'].isin(selected_years)]
+    if selected_amphoe:
+        filtered_df = filtered_df[filtered_df['อำเภอ_norm'].isin(selected_amphoe)]
+    if selected_tambon:
+        filtered_df = filtered_df[filtered_df['ตำบล_norm'].isin(selected_tambon)]
+    if selected_forest_types:
+        filtered_df = filtered_df[filtered_df['ประเภทป่าอนุรักษ์'].isin(selected_forest_types)]
+
+    count_filtered = len(filtered_df)
+
+    # --- KPI ROW & GAUGES (MATCHING WIREFRAME) ---
+    st.markdown("#### 📊 ตัวชี้วัดสำคัญเชิงปริมาณ (Key Metrics & Gauges)")
+    kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns([1.2, 1.2, 1, 1])
+
+    with kpi_col1:
+        fig_g1 = create_gauge_meter(
+            value=count_filtered,
+            max_val=total_expected,
+            title="จุดความร้อนในตัวกรอง",
+            unit="จุด",
+            color=COLOR_FIRE_RED
+        )
+        st.plotly_chart(fig_g1, use_container_width=True)
+
+    with kpi_col2:
+        pct_of_total = (count_filtered / total_expected * 100) if total_expected > 0 else 0
+        fig_g2 = create_gauge_meter(
+            value=round(pct_of_total, 1),
+            max_val=100,
+            title="สัดส่วนเทียบทั้งจังหวัด",
+            unit="%",
+            color=COLOR_FIRE_ORANGE
+        )
+        st.plotly_chart(fig_g2, use_container_width=True)
+
+    with kpi_col3:
+        top_amp = filtered_df['อำเภอ_norm'].value_counts().index[0] if count_filtered > 0 else "—"
+        top_amp_cnt = filtered_df['อำเภอ_norm'].value_counts().iloc[0] if count_filtered > 0 else 0
+        st.metric(
+            label="📍 อำเภอที่พบจุดสูงสุด",
+            value=f"{top_amp}",
+            delta=f"{top_amp_cnt:,} จุด"
+        )
+        st.metric(
+            label="🌲 พื้นที่ป่าอนุรักษ์ที่ได้รับผลกระทบ",
+            value=f"{filtered_df['ชื่อพื้นที่'].nunique():,} แห่ง"
+        )
+
+    with kpi_col4:
+        top_station = filtered_df['สถานีฯที่รับผิดชอบ'].value_counts().index[0] if count_filtered > 0 else "—"
+        top_station_cnt = filtered_df['สถานีฯที่รับผิดชอบ'].value_counts().iloc[0] if count_filtered > 0 else 0
+        st.metric(
+            label="🚒 สถานีฯ ที่รับภาระงานสูงสุด",
+            value=f"{top_station[:18]}...",
+            delta=f"{top_station_cnt:,} จุด"
+        )
+        st.metric(
+            label="🎯 ยอดรวมข้อมูลทั้งหมดในระบบ",
+            value=f"{total_expected:,} จุด",
+            help="ยอดรวม Hotspot ตรงตามข้อกำหนด BRD (8,606 จุด)"
+        )
+
+    st.markdown("---")
+
+    # --- MAIN VISUALIZATION: MAP (RIGHT SIDE OF WIREFRAME) & TEMPORAL (LEFT SIDE) ---
+    col_left, col_right = st.columns([1, 1.3])
+
+    with col_left:
+        st.markdown("#### ⏳ การกระจายตัวเชิงเวลา (Temporal Trends)")
+
+        # 1. Temporal Wave / Monthly Curve (Wireframe top-left)
+        month_order = [
+            'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม',
+            'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+        ]
+        month_counts = filtered_df.groupby(['month_name', 'พ.ศ.'], as_index=False).size()
+        month_counts['month_name'] = pd.Categorical(month_counts['month_name'], categories=month_order, ordered=True)
+        month_counts = month_counts.sort_values('month_name')
+
+        fig_wave = px.line(
+            month_counts,
+            x='month_name',
+            y='size',
+            color='พ.ศ.',
+            line_shape='spline',
+            markers=True,
+            title="📈 ฤดูกาลเกิดจุดความร้อนรายเดือน (Seasonal Wave)",
+            labels={'month_name': 'เดือน', 'size': 'จำนวนจุดความร้อน', 'พ.ศ.': 'ปี พ.ศ.'},
+            color_discrete_sequence=[COLOR_FIRE_ORANGE, COLOR_FIRE_RED, "#FFB74D"]
+        )
+        fig_wave.update_layout(
+            margin=dict(l=10, r=10, t=40, b=20),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig_wave, use_container_width=True)
+
+        # 2. Hourly Breakdown (RQ4: ช่วงเวลาและชั่วโมงที่ตรวจพบจุดความร้อน)
+        hour_df = filtered_df.groupby('hour_of_day', as_index=False).size()
+        all_hours = pd.DataFrame({'hour_of_day': list(range(24))})
+        hour_df = pd.merge(all_hours, hour_df, on='hour_of_day', how='left').fillna(0)
+
+        fig_hour = px.bar(
+            hour_df,
+            x='hour_of_day',
+            y='size',
+            title="⏰ การตรวจพบจุดความร้อนรายชั่วโมง (รอบโคจรสถิตย์ดาวเทียม)",
+            labels={'hour_of_day': 'ชั่วโมง (0-23 น.)', 'size': 'จำนวนจุด'},
+            color='size',
+            color_continuous_scale="Reds"
+        )
+        fig_hour.update_layout(
+            margin=dict(l=10, r=10, t=40, b=20),
+            coloraxis_showscale=False,
+            xaxis=dict(tickmode='linear', tick0=0, dtick=2)
+        )
+        st.plotly_chart(fig_hour, use_container_width=True)
+
+        # 3. Forest Type Donut & Treemap
+        col_donut, col_conf = st.columns(2)
+        with col_donut:
+            forest_counts = filtered_df['ประเภทป่าอนุรักษ์'].value_counts().reset_index()
+            fig_donut = px.pie(
+                forest_counts,
+                names='ประเภทป่าอนุรักษ์',
+                values='count',
+                hole=0.5,
+                title="🌲 สัดส่วนประเภทป่าอนุรักษ์",
+                color_discrete_sequence=px.colors.sequential.Greens_r
+            )
+            fig_donut.update_layout(margin=dict(l=10, r=10, t=40, b=10), showlegend=False)
+            st.plotly_chart(fig_donut, use_container_width=True)
+
+        with col_conf:
+            conf_counts = filtered_df['CONFEDENCE'].value_counts().reset_index()
+            fig_conf = px.pie(
+                conf_counts,
+                names='CONFEDENCE',
+                values='count',
+                hole=0.5,
+                title="🎯 ระดับ CONFEDENCE",
+                color_discrete_sequence=['#4CAF50', '#FF9800', '#F44336', '#9E9E9E']
+            )
+            fig_conf.update_layout(margin=dict(l=10, r=10, t=40, b=10), showlegend=False)
+            st.plotly_chart(fig_conf, use_container_width=True)
+
+    with col_right:
+        st.markdown("#### 🗺️ แผนที่พิกัดจุดความร้อน (Geographic Map)")
+
+        if count_filtered > 0:
+            # Mapbox / OpenStreetMap Scatter Map
+            fig_map = px.scatter_mapbox(
+                filtered_df,
+                lat='LAT',
+                lon='LONG',
+                color='ประเภทป่าอนุรักษ์',
+                size_max=8,
+                zoom=7.8,
+                center=dict(lat=14.5, lon=98.8),
+                hover_name='ชื่อพื้นที่',
+                hover_data={
+                    'อำเภอ_norm': True,
+                    'ตำบล_norm': True,
+                    'ว/ด/ป': True,
+                    'time_hhmm': True,
+                    'CONFEDENCE': True,
+                    'LAT': ':.4f',
+                    'LONG': ':.4f'
+                },
+                mapbox_style="open-street-map",
+                title=f"📍 แผนที่การกระจุกตัวของจุดความร้อน ({count_filtered:,} จุด)"
+            )
+            fig_map.update_layout(
+                height=520,
+                margin=dict(l=5, r=5, t=35, b=5),
+                legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="right", x=1)
+            )
+            st.plotly_chart(fig_map, use_container_width=True)
+        else:
+            st.warning("⚠️ ไม่มีข้อมูลจุดความร้อนตามเงื่อนไขตัวกรองที่เลือก")
+
+        # Treemap Breakdown (Amphoe -> Forest Area)
+        st.markdown("#### 🌳 แผนภูมิพื้นที่ป่าอนุรักษ์ที่เกิดไฟป่า (Treemap Breakdown)")
+        tree_df = filtered_df.groupby(['อำเภอ_norm', 'ชื่อพื้นที่'], as_index=False).size()
+        fig_tree = px.treemap(
+            tree_df,
+            path=['อำเภอ_norm', 'ชื่อพื้นที่'],
+            values='size',
+            color='size',
+            color_continuous_scale='Oranges',
+            title="สัดส่วนจุดความร้อนตามอำเภอและชื่อป่าอนุรักษ์"
+        )
+        fig_tree.update_layout(height=300, margin=dict(l=5, r=5, t=35, b=5))
+        st.plotly_chart(fig_tree, use_container_width=True)
+
+    # --- SECTION: STATION WORKLOAD (RQ8) & DATA TABLE (WIREFRAME BOTTOM RIGHT) ---
+    st.markdown("---")
+    st.markdown("#### 🚒 ภาระงานรายสถานีควบคุมไฟป่าฯ (Station Workload Analysis - RQ8)")
+
+    col_st1, col_st2 = st.columns([1.2, 1])
+
+    with col_st1:
+        st_work = filtered_df.groupby('สถานีฯที่รับผิดชอบ', as_index=False).agg(
+            total_hotspots=('LAT', 'count'),
+            high_conf=('CONFEDENCE', lambda s: (s.astype(str).str.lower() == 'high').sum())
+        ).sort_values('total_hotspots', ascending=True)
+
+        fig_st = px.bar(
+            st_work,
+            x='total_hotspots',
+            y='สถานีฯที่รับผิดชอบ',
+            orientation='h',
+            title="ปริมาณจุดความร้อนที่แต่ละสถานีฯ ต้องรับผิดชอบ",
+            labels={'total_hotspots': 'จำนวนจุดความร้อน (จุด)', 'สถานีฯที่รับผิดชอบ': 'สถานีควบคุมไฟป่า'},
+            color='total_hotspots',
+            color_continuous_scale="Reds"
+        )
+        fig_st.update_layout(height=400, margin=dict(l=10, r=10, t=35, b=10), coloraxis_showscale=False)
+        st.plotly_chart(fig_st, use_container_width=True)
+
+    with col_st2:
+        st.markdown("**ตารางสรุปภาระงานและความน่าเชื่อถือ (Confidence Breakdown):**")
+        table_st = filtered_df.groupby(['สถานีฯที่รับผิดชอบ', 'CONFEDENCE']).size().unstack(fill_value=0)
+        table_st['รวมทั้งสิ้น'] = table_st.sum(axis=1)
+        table_st = table_st.sort_values('รวมทั้งสิ้น', ascending=False)
+        st.dataframe(
+            table_st.style.background_gradient(cmap="YlOrRd", subset=['รวมทั้งสิ้น']),
+            use_container_width=True,
+            height=360
+        )
