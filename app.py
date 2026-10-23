@@ -538,6 +538,30 @@ app.layout = html.Div([
                     ], md=8, className="mb-2"),
                 ], className="g-2"),
 
+                # Phase 9C: recurrence and district composition
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Card([
+                            html.Div("🔝 10 ตำบลที่พบจุดความร้อนสูงสุด (คลิกแท่งเพื่อกรอง)", className="viya-panel-header"),
+                            dbc.CardBody([dcc.Graph(id="chart-top-tambon", style={"height": "280px"})], className="p-1"),
+                        ], className="viya-panel h-100"),
+                    ], md=6, className="mb-2"),
+                    dbc.Col([
+                        dbc.Card([
+                            html.Div("🔁 จำนวนวันรายงานซ้ำตามตำบล (คลิกแท่งเพื่อกรอง)", className="viya-panel-header"),
+                            dbc.CardBody([dcc.Graph(id="chart-recurrence", style={"height": "280px"})], className="p-1"),
+                        ], className="viya-panel h-100"),
+                    ], md=6, className="mb-2"),
+                ], className="g-2"),
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Card([
+                            html.Div("🏞️ จุดความร้อนตามอำเภอและประเภทป่า (คลิกแท่งเพื่อกรอง)", className="viya-panel-header"),
+                            dbc.CardBody([dcc.Graph(id="chart-district-forest", style={"height": "300px"})], className="p-1"),
+                        ], className="viya-panel h-100"),
+                    ], md=12, className="mb-2"),
+                ], className="g-2"),
+
                 # Row 2: Seasonality split
                 dbc.Row([
                     dbc.Col([
@@ -619,6 +643,17 @@ app.layout = html.Div([
                                 inline=True,
                                 className="small",
                                 style={"fontSize": "0.72rem"}
+                            ),
+                            dbc.RadioItems(
+                                id="map-mode",
+                                options=[
+                                    {"label": " จุด", "value": "scatter"},
+                                    {"label": " ความหนาแน่น", "value": "density"},
+                                ],
+                                value="scatter",
+                                inline=True,
+                                className="small",
+                                style={"fontSize": "0.72rem"},
                             ),
                         ], style={"display": "flex", "gap": "10px"}),
                     ], className="viya-panel-header"),
