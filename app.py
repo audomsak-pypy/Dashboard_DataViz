@@ -31,6 +31,9 @@ from utils.data_loader import (
 df_events_all = load_hotspot_events()
 df_joined_all = load_joined_table()
 
+# Fail early if the stored data is not the validated dashboard dataset.
+assert df_joined_all["hotspot_count"].sum() == EXPECTED_TOTAL_HOTSPOTS
+
 amphoe_opts = sorted(df_events_all["อำเภอ_norm"].dropna().unique().tolist())
 tambon_opts = sorted(df_events_all["ตำบล_norm"].dropna().unique().tolist())
 pa_opts     = sorted(df_events_all["ประเภทป่าอนุรักษ์"].dropna().unique().tolist())
@@ -38,6 +41,72 @@ conf_opts   = sorted(df_events_all["CONFEDENCE"].dropna().unique().tolist())
 
 year_ce_min = int(df_events_all["date_parsed"].dt.year.min())
 year_ce_max = int(df_events_all["date_parsed"].dt.year.max())
+
+
+def filter_dashboard_data(filter_state, year_range):
+    """Return event and tambon-year data for the active geography and years."""
+    state = filter_state or {}
+    start_year, end_year = year_range
+    events = df_events_all[
+        (df_events_all["date_parsed"].dt.year >= start_year)
+        & (df_events_all["date_parsed"].dt.year <= end_year)
+    ].copy()
+    joined = df_joined_all[
+        df_joined_all["พ.ศ."].between(start_year + 543, end_year + 543)
+    ].copy()
+
+    for column, key in (("อำเภอ_norm", "amphoe"), ("ตำบล_norm", "tambon")):
+        if state.get(key):
+            events = events[events[column] == state[key]]
+            joined = joined[joined[column] == state[key]]
+    if state.get("conf"):
+        events = events[events["CONFEDENCE"] == state["conf"]]
+    if state.get("pa"):
+        events = events[events["ประเภทป่าอนุรักษ์"] == state["pa"]]
+    if state.get("month"):
+        events = events[events["month"] == state["month"]]
+    if state.get("season"):
+        dry_months = {11, 12, 1, 2, 3, 4}
+        if state["season"] == "dry":
+            events = events[events["month"].isin(dry_months)]
+        elif state["season"] == "rainy":
+            events = events[~events["month"].isin(dry_months)]
+    return events, joined
+
+
+def compute_kpis(filter_state, year_range):
+    """Single source of truth for all dashboard headline values."""
+    events, joined = filter_dashboard_data(filter_state, year_range)
+    hotspot_total = int(len(events))
+    durian_total = float(joined["durian_area_rai"].sum(min_count=1) or 0)
+    quality_count = int(events["CONFEDENCE"].isin(["high", "nominal"]).sum())
+    quality_pct = (quality_count / hotspot_total * 100) if hotspot_total else 0.0
+
+    state = filter_state or {}
+    comparison_events = df_events_all.copy()
+    for column, key in (("อำเภอ_norm", "amphoe"), ("ตำบล_norm", "tambon")):
+        if state.get(key):
+            comparison_events = comparison_events[comparison_events[column] == state[key]]
+    if state.get("conf"):
+        comparison_events = comparison_events[comparison_events["CONFEDENCE"] == state["conf"]]
+    if state.get("pa"):
+        comparison_events = comparison_events[comparison_events["ประเภทป่าอนุรักษ์"] == state["pa"]]
+    if state.get("month"):
+        comparison_events = comparison_events[comparison_events["month"] == state["month"]]
+
+    selected_year = year_range[1]
+    current_total = int((comparison_events["date_parsed"].dt.year == selected_year).sum())
+    previous_total = int((comparison_events["date_parsed"].dt.year == selected_year - 1).sum())
+    yoy = None if previous_total == 0 else (current_total - previous_total) / previous_total * 100
+    return {
+        "events": events,
+        "joined": joined,
+        "hotspot_total": hotspot_total,
+        "durian_total": durian_total,
+        "quality_count": quality_count,
+        "quality_pct": quality_pct,
+        "yoy": yoy,
+    }
 
 # ─── Dash App Setup ────────────────────────────────────────────
 app = dash.Dash(
@@ -325,13 +394,13 @@ app.layout = html.Div([
         html.Div([
             html.Div([
                 html.P("Total Hotspots:", className="header-kpi-label"),
-                html.P("8,606", id="header-hotspot-val", className="header-kpi-val", style={"color": "#EA580C"}),
-                html.P("(พ.ศ. 2566–2568)", style={"fontSize": "0.68rem", "color": "#94A3B8", "margin": 0}),
+                html.P("—", id="header-hotspot-val", className="header-kpi-val", style={"color": "#EA580C"}),
+                html.P("(ตามตัวกรองที่เลือก)", style={"fontSize": "0.68rem", "color": "#94A3B8", "margin": 0}),
             ], className="header-kpi-item"),
             html.Div([
                 html.P("Durian Cultivation:", className="header-kpi-label"),
-                html.P("13,732.5 ไร่", id="header-durian-val", className="header-kpi-val", style={"color": "#84CC16"}),
-                html.P("(ปีล่าสุด 2568)", style={"fontSize": "0.68rem", "color": "#94A3B8", "margin": 0}),
+                html.P("—", id="header-durian-val", className="header-kpi-val", style={"color": "#84CC16"}),
+                html.P("(ตามตัวกรองที่เลือก)", style={"fontSize": "0.68rem", "color": "#94A3B8", "margin": 0}),
             ], className="header-kpi-item"),
             html.Div([
                 html.P("Data Source:", className="header-kpi-label"),
@@ -410,6 +479,31 @@ app.layout = html.Div([
             ], style={"padding": "8px 14px"}),
         ], className="viya-panel"),
 
+        # ── Phase 9 scorecards ─────────────────────────────────
+        dbc.Row([
+            dbc.Col(dbc.Card([
+                html.Div("จุดความร้อนสะสม", className="viya-panel-header"),
+                dbc.CardBody([
+                    html.Div(id="kpi-hotspot-value", style={"fontSize": "2.1rem", "fontWeight": "800", "color": "#EA580C"}),
+                    html.Div(id="kpi-hotspot-delta", style={"fontSize": "0.78rem", "color": "#94A3B8"}),
+                ]),
+            ], className="viya-panel h-100"), md=4, className="mb-2"),
+            dbc.Col(dbc.Card([
+                html.Div("พื้นที่ปลูกทุเรียนในช่วงปีที่เลือก", className="viya-panel-header"),
+                dbc.CardBody([
+                    html.Div(id="kpi-durian-value", style={"fontSize": "2.1rem", "fontWeight": "800", "color": "#84CC16"}),
+                    html.Div(id="kpi-durian-meta", style={"fontSize": "0.78rem", "color": "#94A3B8"}),
+                ]),
+            ], className="viya-panel h-100"), md=4, className="mb-2"),
+            dbc.Col(dbc.Card([
+                html.Div("คุณภาพข้อมูลจุดความร้อน", className="viya-panel-header"),
+                dbc.CardBody([
+                    html.Div(id="kpi-quality-value", style={"fontSize": "2.1rem", "fontWeight": "800", "color": "#38BDF8"}),
+                    html.Div(id="kpi-quality-meta", style={"fontSize": "0.78rem", "color": "#94A3B8"}),
+                ]),
+            ], className="viya-panel h-100"), md=4, className="mb-2"),
+        ], className="g-2"),
+
         # ── MAIN 2-COLUMN COCKPIT GRID ─────────────────────────
         dbc.Row([
 
@@ -418,32 +512,7 @@ app.layout = html.Div([
             # ═══════════════════════════════════════════════════
             dbc.Col([
 
-                # Row 1: Semi-Circular Gauges & Quick Metrics (like SAS Viya top left)
-                dbc.Row([
-                    dbc.Col([
-                        dbc.Card([
-                            html.Div("ACTIVE HOTSPOT INTENSITY", className="viya-panel-header"),
-                            dbc.CardBody([
-                                dcc.Graph(id="gauge-hotspots", style={"height": "165px"}),
-                                html.Div("🟢 ปกติ (<30%) | 🟠 ปานกลาง (30-70%) | 🔴 สูง (>70%)",
-                                         style={"fontSize": "0.68rem", "color": "#94A3B8", "textAlign": "center", "marginTop": "-8px"}),
-                            ], className="p-1"),
-                        ], className="viya-panel h-100"),
-                    ], md=6, className="mb-2"),
-
-                    dbc.Col([
-                        dbc.Card([
-                            html.Div("DURIAN CULTIVATION AREA (RAI)", className="viya-panel-header"),
-                            dbc.CardBody([
-                                dcc.Graph(id="gauge-durian", style={"height": "165px"}),
-                                html.Div("🌿 พื้นที่เพาะปลูก: 0-35% เล็กน้อย | 35-70% ปานกลาง | >70% หนาแน่น",
-                                         style={"fontSize": "0.68rem", "color": "#94A3B8", "textAlign": "center", "marginTop": "-8px"}),
-                            ], className="p-1"),
-                        ], className="viya-panel h-100"),
-                    ], md=6, className="mb-2"),
-                ], className="g-2"),
-
-                # Row 2: Most Active Hours (List) + Fire Activity Trend (Spline Area)
+                # Row 1: Most Active Hours (List) + Fire Activity Trend (Spline Area)
                 dbc.Row([
                     # Left: Top Active Hours list (Matching SAS Viya 'Most active days' on left)
                     dbc.Col([
@@ -721,8 +790,12 @@ def render_filter_pills(store, year_range):
 @app.callback(
     Output("header-hotspot-val",      "children"),
     Output("header-durian-val",       "children"),
-    Output("gauge-hotspots",          "figure"),
-    Output("gauge-durian",            "figure"),
+    Output("kpi-hotspot-value",       "children"),
+    Output("kpi-hotspot-delta",       "children"),
+    Output("kpi-durian-value",        "children"),
+    Output("kpi-durian-meta",         "children"),
+    Output("kpi-quality-value",       "children"),
+    Output("kpi-quality-meta",        "children"),
     Output("top-hours-list",          "children"),
     Output("chart-activity",          "figure"),
     Output("chart-conf-donut",        "figure"),
@@ -745,33 +818,9 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
     pa_filter = state.get("pa")
     m_filter = state.get("month")
 
-    # ── 1. Filter Hotspot Events ───────────────────────────────
-    df_h = df_events_all.copy()
-
-    # Year filter
-    df_h = df_h[
-        (df_h["date_parsed"].dt.year >= year_range[0]) &
-        (df_h["date_parsed"].dt.year <= year_range[1])
-    ]
-
-    # Global cross-filters
-    if a_filter:
-        df_h = df_h[df_h["อำเภอ_norm"] == a_filter]
-    if t_filter:
-        df_h = df_h[df_h["ตำบล_norm"] == t_filter]
-    if conf_filter:
-        df_h = df_h[df_h["CONFEDENCE"] == conf_filter]
-    if pa_filter:
-        df_h = df_h[df_h["ประเภทป่าอนุรักษ์"] == pa_filter]
-    if m_filter:
-        df_h = df_h[df_h["month"] == m_filter]
-
-    # ── 2. Filter Durian Data ──────────────────────────────────
-    df_d = df_joined_all.copy()
-    if a_filter:
-        df_d = df_d[df_d["อำเภอ_norm"] == a_filter]
-    if t_filter:
-        df_d = df_d[df_d["ตำบล_norm"] == t_filter]
+    metrics = compute_kpis(state, year_range)
+    df_h = metrics["events"]
+    df_d = metrics["joined"]
 
     # Standardized Layout Theme Helper
     def get_theme(m=None, **kwargs):
@@ -784,77 +833,25 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
         d.update(kwargs)
         return d
 
-    # ── 3. Gauge 1: Active Fire Count (Matching SAS Viya) ─────
-    cur_hotspots = len(df_h)
+    # ── 3. Scorecard values ───────────────────────────────────
+    cur_hotspots = metrics["hotspot_total"]
 
-    # Acceptance Criteria Check: When no filter is applied, total must be exactly 8,606
+    # Assert the validated total when no cross-filter is active.
     if not t_filter and not a_filter and not conf_filter and not pa_filter and not m_filter and year_range == [year_ce_min, year_ce_max]:
         assert cur_hotspots == EXPECTED_TOTAL_HOTSPOTS, f"Hotspot count mismatch: {cur_hotspots} != {EXPECTED_TOTAL_HOTSPOTS}"
 
-    # Dynamic limit for hotspots gauge
-    if t_filter:
-        q95_h = int(df_joined_all.groupby('ตำบล_norm')['hotspot_count'].sum().quantile(0.95))
-        max_hotspots_gauge = max(cur_hotspots, q95_h, 100)
-    elif a_filter:
-        max_hotspots_gauge = max(cur_hotspots, 1000)
-    else:
-        max_hotspots_gauge = EXPECTED_TOTAL_HOTSPOTS
-
-    fig_gauge_fire = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=cur_hotspots,
-        domain={'x': [0, 1], 'y': [0, 1]},
-        number={'valueformat': ',d', 'suffix': " จุด", 'font': {'size': 22, 'color': '#EA580C', 'weight': 'bold'}},
-        gauge={
-            'axis': {'range': [0, max_hotspots_gauge], 'tickwidth': 1, 'tickcolor': '#64748B', 'nticks': 5},
-            'bar': {'color': '#EA580C', 'thickness': 0.28},
-            'bgcolor': '#0E1624',
-            'borderwidth': 0,
-            'steps': [
-                {'range': [0, max_hotspots_gauge * 0.3], 'color': '#065F46'},
-                {'range': [max_hotspots_gauge * 0.3, max_hotspots_gauge * 0.7], 'color': '#B45309'},
-                {'range': [max_hotspots_gauge * 0.7, max_hotspots_gauge], 'color': '#991B1B'},
-            ]
-        }
-    ))
-    fig_gauge_fire.update_layout(paper_bgcolor="rgba(0,0,0,0)", margin=dict(l=15, r=15, t=10, b=10))
-
-    # ── 4. Gauge 2: Durian Area (Rai) (Matching SAS Viya) ──────
-    latest_durian_df = df_d[df_d["พ.ศ."] == 2568]
-    cur_durian_rai = float(latest_durian_df["durian_area_rai"].sum())
-
-    # Dynamic limit for durian gauge
-    if t_filter:
-        q95_d = float(df_joined_all[df_joined_all['พ.ศ.'] == 2568]['durian_area_rai'].quantile(0.95))
-        max_durian_gauge = max(cur_durian_rai, q95_d, 100.0)
-    elif a_filter:
-        max_durian_gauge = max(cur_durian_rai, 2000.0)
-    else:
-        # Full province total is 13,732.5 rai -> headroom to 15,000 rai
-        max_durian_gauge = 15000.0
-
-    fig_gauge_durian = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=cur_durian_rai,
-        domain={'x': [0, 1], 'y': [0, 1]},
-        number={'valueformat': ',.1f', 'suffix': " ไร่", 'font': {'size': 22, 'color': '#84CC16', 'weight': 'bold'}},
-        gauge={
-            'axis': {'range': [0, max_durian_gauge], 'tickwidth': 1, 'tickcolor': '#64748B', 'nticks': 5},
-            'bar': {'color': '#84CC16', 'thickness': 0.28},
-            'bgcolor': '#0E1624',
-            'borderwidth': 0,
-            'steps': [
-                {'range': [0, max_durian_gauge * 0.35], 'color': '#1E293B'},
-                {'range': [max_durian_gauge * 0.35, max_durian_gauge * 0.7], 'color': '#365314'},
-                {'range': [max_durian_gauge * 0.7, max_durian_gauge], 'color': '#4D7C0F'},
-            ]
-        }
-    ))
-    fig_gauge_durian.update_layout(paper_bgcolor="rgba(0,0,0,0)", margin=dict(l=15, r=15, t=10, b=10))
-
-    # Synchronized Header Values
+    cur_durian_rai = metrics["durian_total"]
+    yoy = metrics["yoy"]
+    quality_pct = metrics["quality_pct"]
+    # Header and cards use exactly the same calculated values.
     header_hotspot_text = f"{cur_hotspots:,}"
     header_durian_text = f"{cur_durian_rai:,.1f} ไร่"
+    kpi_hotspot_value = f"{cur_hotspots:,} จุด"
+    kpi_hotspot_delta = "ไม่มีข้อมูลปีก่อนหน้า" if yoy is None else f"เทียบปีก่อนหน้า: {yoy:+.1f}%"
+    kpi_durian_value = f"{cur_durian_rai:,.1f} ไร่"
+    kpi_durian_meta = f"พ.ศ. {year_range[0] + 543}–{year_range[1] + 543}"
+    kpi_quality_value = f"{quality_pct:.1f}%"
+    kpi_quality_meta = f"High/Nominal {metrics['quality_count']:,} จาก {cur_hotspots:,} จุด"
 
     # ── 5. Most Active Hours List (styled like SAS Viya left list) ─
     top_hours = df_h.groupby("hour_of_day").size().reset_index(name="count").sort_values("count", ascending=False).head(5)
@@ -1179,8 +1176,12 @@ def update_entire_dashboard(filter_state, year_range, map_basemap):
     return (
         header_hotspot_text,
         header_durian_text,
-        fig_gauge_fire,
-        fig_gauge_durian,
+        kpi_hotspot_value,
+        kpi_hotspot_delta,
+        kpi_durian_value,
+        kpi_durian_meta,
+        kpi_quality_value,
+        kpi_quality_meta,
         hours_items,
         fig_activity,
         fig_donut,
