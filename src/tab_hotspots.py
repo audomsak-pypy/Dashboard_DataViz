@@ -213,34 +213,66 @@ def render_tab_hotspots(df_events: pd.DataFrame, total_expected: int):
             st.plotly_chart(fig_conf, use_container_width=True, config=PLOTLY_CONFIG)
 
     with col_right:
-        st.markdown("#### แผนที่พิกัดจุดความร้อน (Geographic Map)")
+        col_m1, col_m2 = st.columns([1.5, 1])
+        with col_m1:
+            st.markdown("#### แผนที่พิกัดจุดความร้อน (Geographic Map)")
+        with col_m2:
+            map_type = st.radio(
+                "รูปแบบแผนที่",
+                options=["จุดพิกัด (Scatter)", "ความหนาแน่น (Density)"],
+                horizontal=True,
+                label_visibility="collapsed"
+            )
 
         if count_filtered > 0:
-            # Dark basemap Map Scatter
-            fig_map = px.scatter_map(
-                filtered_df,
-                lat='LAT',
-                lon='LONG',
-                color='ประเภทป่าอนุรักษ์',
-                size_max=8,
-                zoom=7.8,
-                center=dict(lat=14.5, lon=98.8),
-                hover_name='ชื่อพื้นที่',
-                hover_data={
-                    'อำเภอ_norm': True,
-                    'ตำบล_norm': True,
-                    'ว/ด/ป': True,
-                    'time_hhmm': True,
-                    'CONFEDENCE': True,
-                    'LAT': ':.4f',
-                    'LONG': ':.4f'
-                },
-                map_style="carto-darkmatter",
-                color_discrete_sequence=PLOTLY_FIRE_SEQUENCE,
-                title=f"การกระจุกตัวของจุดความร้อน ({count_filtered:,} จุด)",
-                template="plotly_dark"
-            )
+            if map_type == "ความหนาแน่น (Density)":
+                fig_map = px.density_map(
+                    filtered_df,
+                    lat='LAT',
+                    lon='LONG',
+                    radius=12,
+                    zoom=7.8,
+                    center=dict(lat=14.5, lon=98.8),
+                    hover_name='ชื่อพื้นที่',
+                    hover_data={
+                        'อำเภอ_norm': True,
+                        'ตำบล_norm': True,
+                        'LAT': ':.4f',
+                        'LONG': ':.4f'
+                    },
+                    map_style="carto-darkmatter",
+                    color_continuous_scale="Inferno",
+                    title=f"ความหนาแน่นของจุดความร้อน ({count_filtered:,} จุด)",
+                    template="plotly_dark"
+                )
+            else:
+                # Dark basemap Map Scatter
+                fig_map = px.scatter_map(
+                    filtered_df,
+                    lat='LAT',
+                    lon='LONG',
+                    color='ประเภทป่าอนุรักษ์',
+                    size_max=8,
+                    zoom=7.8,
+                    center=dict(lat=14.5, lon=98.8),
+                    hover_name='ชื่อพื้นที่',
+                    hover_data={
+                        'อำเภอ_norm': True,
+                        'ตำบล_norm': True,
+                        'ว/ด/ป': True,
+                        'time_hhmm': True,
+                        'CONFEDENCE': True,
+                        'LAT': ':.4f',
+                        'LONG': ':.4f'
+                    },
+                    map_style="carto-darkmatter",
+                    color_discrete_sequence=PLOTLY_FIRE_SEQUENCE,
+                    title=f"การกระจุกตัวของจุดความร้อน ({count_filtered:,} จุด)",
+                    template="plotly_dark"
+                )
+
             fig_map.update_layout(
+                map_style="carto-darkmatter",
                 height=520,
                 margin=dict(l=5, r=5, t=35, b=5),
                 paper_bgcolor="rgba(0,0,0,0)",
