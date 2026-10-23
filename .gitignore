@@ -5,3 +5,6 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 .venv_phase8/
+.venv*/
+dash_server*
+*.err
