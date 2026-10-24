@@ -1,0 +1,82 @@
+# Project Status: Kanchanaburi Interactive Wildfire & Durian Dashboard
+
+**Project Type:** Python (Streamlit + Plotly) Interactive Dashboard  
+**Edition:** Professional Executive Dark Dashboard (ธีมดำ-แดงไฟป่า)  
+**Dataset:** จุดความร้อน (Hotspots) ป่าอนุรักษ์ & พื้นที่ปลูกทุเรียน จ.กาญจนบุรี  
+**Last Updated:** 2026-10-23  
+
+---
+
+## 📊 Summary of Phases & Progress
+
+| Phase | Milestone | Status | Key Deliverables |
+|:---:|:---|:---:|:---|
+| **Phase 1** | Data Profiling & Validation | 🟢 Completed | สำรวจข้อมูล 8,606 จุด, ตรวจสอบ Encoding (`utf-8-sig`), Schema, รูปแบบเวลา/วันที่ |
+| **Phase 2** | Data Model Preparation & Join Logic | 🟢 Completed | สกัดปี พ.ศ., แปลงเวลา `HH:MM`, ทำความสะอาด Whitespace, Outer Join โดยผลรวม Hotspot = 8,606 คงที่ |
+| **Phase 3** | Project Architecture & Core Modules | 🟢 Completed | วางโครงสร้างโมดูล `src/config.py`, `src/data_loader.py`, `src/components.py` |
+| **Phase 4** | Tab 1: Hotspot Overview (Spatial & Temporal) | 🟢 Completed | แผนที่พิกัด Carto-Darkmatter, มาตรวัด Gauge ธีมไฟป่า, Seasonal Wave, กราฟแจกแจงรายชั่วโมง, Treemap, Donut |
+| **Phase 5** | Tab 2: Durian Cultivation Overview | 🟢 Completed | แนวโน้ม พ.ศ. 2561-2568, ตารางจัดอันดับพื้นที่ (ไร่) พร้อมแยก 0.0 vs Null ชัดเจน |
+| **Phase 6** | Tab 3: Spatial & Temporal Comparison & Stats | 🟢 Completed | Dual-axis line chart, บับเบิลชาร์ต, การทดสอบ Mann-Whitney U Test, ข้อความปฏิเสธความรับผิดชอบ (Disclaimer) ครบถ้วน |
+| **Phase 7** | Professional Executive Refactoring & UI/UX | 🟢 Completed | ปรับ Dark Mode บังคับใช้ทั้งระบบ, โทนสีไฟป่า Crimson/Orange/Amber, ลบ Emoji ทั้งหมด, แก้ปัญหาข้อความโดนตัดด้วย Custom CSS (Text Wrap) |
+
+---
+
+## 📝 Step-by-Step Execution Log
+
+### Step 1: Environment & Dependency Check
+- [x] ตรวจสอบ Python 3.11 และไลบรารีพื้นฐาน (streamlit, plotly, pandas)
+- [x] ติดตั้งไลบรารีทางสถิติ `scipy` สำหรับ Mann-Whitney U Test
+
+### Step 2: Data Profiling & Data Model Validation
+- [x] ตรวจสอบ Encoding ของไฟล์ CSV (`cleaned_dataset_Wildfire.csv` และ `wildfire_point.csv` ใช้ `utf-8-sig`)
+- [x] ยืนยันยอดแถว Wildfire รวม = 8,606 จุด
+- [x] พัฒนาตรรกะการแปลงวันที่ภาษาไทย (ว/ด/ป -> พ.ศ. 2566, 2567, 2568)
+- [x] พัฒนาตรรกะแปลงเวลาจุดทศนิยมเป็นเวลามาตรฐาน `HH:MM` และ `hour_of_day`
+- [x] ยืนยันการจัดการความไม่สมบูรณ์และ Whitespace ของอำเภอและตำบล (31 ตำบลตรงกัน 100%)
+- [x] ทดสอบการรวบรวม (Aggregation) และ Outer Join โดยคงค่า `hotspot_count = 8,606`
+
+### Step 3: Core Application Architecture
+- [x] สร้างโมดูล `src/config.py` กำหนดค่าคงที่ โทนสี ธีม สไตล์ และข้อความปฏิเสธความรับผิดชอบ
+- [x] สร้างโมดูล `src/data_loader.py` สำหรับโหลดและประมวลผลข้อมูลด้วย `@st.cache_data` พร้อมระบบ Assert ความสมบูรณ์ของยอด 8,606 จุด
+- [x] สร้างโมดูล `src/components.py` คอมโพเนนต์ UI (Gauge meters, Metric Cards, Disclaimer banners)
+
+### Step 4: Dashboard Tabs Implementation
+- [x] สร้าง `src/tab_hotspots.py` (Tab 1: มาตรวัด Gauge, แผนที่พิกัด, Temporal wave, Hourly breakdown, Treemap, Donut, Station Workload)
+- [x] สร้าง `src/tab_durian.py` (Tab 2: แนวโน้มพื้นที่ปลูกทุเรียนรายปี พ.ศ. 2561-2568, ตารางจัดอันดับตำบล พร้อมแยก 0.0 ไร่ vs Null)
+- [x] สร้าง `src/tab_comparison.py` (Tab 3: Dual-axis chart, Bubble chart, การทดสอบ Mann-Whitney U Test และรายงานค่าสถิติเชิงลึก)
+- [x] สร้าง `app.py` เชื่อมโยงทุกแท็บเข้าด้วยกันพร้อม Header, Integrity badge, และ Disclaimer
+
+### Step 5: Professional Executive UI/UX Refactoring (ตามข้อกำหนดล่าสุด)
+- [x] **บังคับใช้ Dark Mode:** เพิ่ม `.streamlit/config.toml` และ Custom CSS กำหนดพื้นหลังโทนถ่านดำ `#0E1117` และ `#161B22`
+- [x] **ธีมสีดำ-แดงไฟป่า:** ปรับแต่งกราฟ Plotly ทุกตัวด้วย `template='plotly_dark'` และชุดสี Crimson Red (`#E53935`), Flame Orange (`#FF7043`), Golden Amber (`#FFA726`) พร้อมแผนที่ `carto-darkmatter`
+- [x] **Clean & Minimalist:** ลบ Emoji ทั้งหมดออกจากระบบ (ชื่อระบบ, Tabs, Headers, Metrics, Filters) และตัดข้อความอธิบายเยิ่นเย้อออก
+- [x] **ซ่อน Modebar:** ตั้งค่า `displayModeBar: False` ในกราฟทุกตัว
+- [x] **แก้ปัญหาข้อความโดนตัด:** เขียน Custom CSS บังคับ `white-space: normal !important; word-break: break-word !important;` ทั้ง Metric Label และ Metric Value ห้ามแสดงจุดไข่ปลา `...`
+- [x] **เพิ่ม Breathing Room:** ปรับ Padding, Margin และ Spacing ให้โปร่งสบายระดับ Executive Presentation
+
+### Step 6: Plotly 7 Compatibility & Executive Summary Block
+- [x] **แก้ Error แผนที่:** กำจัดคำสั่ง `scatter_mapbox` และพารามิเตอร์ `mapbox_style` ออกจากทั้งโปรเจกต์ 100% และเปลี่ยนมาใช้ `px.scatter_map` พร้อม `map_style="carto-darkmatter"` ตามมาตรฐาน Plotly 7.x
+- [x] **เพิ่มส่วน Executive Summary:** บรรจุบล็อกข้อความ 'วัตถุประสงค์ของ Dashboard (Objective)' และ 'ประโยชน์ที่ได้รับ (Key Insights)' ไว้ด้านบนสุดก่อนเข้าสู่แท็บข้อมูล โดยคงรูปแบบ Dark/Fire ไม่มีอิโมจิ
+- [x] **ทดสอบการทำงาน:** รันทดสอบคำสั่ง `px.scatter_map` และแอปพลิเคชันผ่านฉลุย สถานะ HTTP 200 OK
+
+### Step 7: Executive Summary & Dashboard Guide in Overview Tab
+- [x] **เพิ่มส่วนคู่มือการวิเคราะห์ (Dashboard Guide):** เพิ่มบล็อก Expander ที่ด้านบนสุดของ Tab 1 (ภาพรวมจุดความร้อน) อธิบายวัตถุประสงค์และจับคู่ชาร์ตกับคำถามทางธุรกิจ (Chart-to-Question Mapping) ครบทั้ง 3 มิติ:
+  1. *Spatial & Location Analysis* (Geographic Map & Heatmap -> พื้นที่วิกฤต/การกระจุกตัว)
+  2. *Temporal Trends Analysis* (Seasonal Wave & Hourly Breakdown -> ฤดูกาลพีค/ช่วงเวลาในรอบวัน)
+  3. *Statistical & Comparative Analysis* (Mann-Whitney U Test & Dual-Axis -> นัยสำคัญทางสถิติระดับตำบล)
+- [x] **คงความ Professional:** ใช้สไตล์ Dark/Fire (เส้นขอบแดง-ส้ม-อำพันบนพื้นหลังถ่านดำ) ไร้อิโมจิ 100%
+- [x] **ตรวจสอบความเรียบร้อย:** เซิร์ฟเวอร์ Streamlit กำลังทำงานต่อเนื่องด้วยสถานะ HTTP 200 OK
+
+### Step 8: Layout Spacing, Top Margins & Bottom Legend Alignment
+- [x] **แก้ปัญหา Title & Legend ซ้อนทับกัน:**
+  - ย้าย Legend ของกราฟเส้นแนวโน้มรายเดือน (Seasonal Wave) ลงไปอยู่ด้านล่างของกราฟ (`y=-0.25`, แนวนอนตรงกลาง) และขยายระยะขอบด้านบน `t=80` เพื่อให้ชื่อกราฟมีพื้นที่กว้างขวาง
+  - ปรับระยะขอบด้านบนของแผนที่พิกัด (Geographic Map) เป็น `t=80` พร้อมย้าย Legend ลงไปอยู่ด้านล่างแผนที่ (`y=-0.08`) ป้องกันการซ้อนทับกับจุดพิกัดบนแผนที่
+  - ปรับแต่งระยะขอบบนและจัดตำแหน่งชื่อกราฟในทุกชาร์ต (Donut, Treemap, Hourly, Station Workload, Dual-Axis, Durian Trends) ให้มี Whitespace เพียงพอ สะอาดตา และไม่มีองค์ประกอบใดซ้อนทับกัน 100%
+- [x] **ทดสอบการทำงาน:** ระบบผ่านการทดสอบ เลย์เอาต์สมบูรณ์แบบ ตอบรับด้วย HTTP 200 OK
+
+### Step 9: Visual-First Minimalist Clean-up
+- [x] **ลบกล่องข้อความบรรยายทั้งหมด:**
+  - ลบส่วน Executive Summary, Objectives, และ Benefits ที่ด้านบนของ `app.py` ออกอย่างหมดจด
+  - ลบบล็อกขยาย Executive Summary & Dashboard Guide และแบนเนอร์แจ้งเตือนยาว ๆ ใน `src/tab_hotspots.py`, `src/tab_durian.py`, และ `src/tab_comparison.py` ออกทั้งหมด
+- [x] **เน้น Visual-First และ Intuitive UI:** แดชบอร์ดมุ่งเน้นไปที่การนำเสนอข้อมูลผ่านกราฟ แผนที่พิกัด และตัวชี้วัด (KPIs/Gauges) ที่เข้าใจได้ด้วยตัวเองทันทีที่เปิดใช้งาน โดยไม่ต้องพึ่งพาข้อความบรรยายยืดยาว
+- [x] **สถานะระบบ:** เซิร์ฟเวอร์ทำงานราบรื่นและตอบรับด้วย HTTP 200 OK
