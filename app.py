@@ -1,6 +1,7 @@
 """
-Professional Executive Dashboard: Kanchanaburi Wildfire & Durian Spatial Analytics
-Enforces Dark Mode, Custom Fire Palette, Zero Emojis, and Zero Text Truncation.
+Kanchanaburi Wildfire & Durian Spatial Analytics (Ultimate Version).
+Master Executive Dashboard combining Version A and Version B.
+Enforces Dark Mode, Fire & Emerald Palette, Zero Emojis, and Zero Text Truncation.
 """
 
 import streamlit as st
@@ -10,120 +11,125 @@ from src.config import (
     TOTAL_EXPECTED_HOTSPOTS
 )
 from src.data_loader import load_and_process_data
-from src.tab_hotspots import render_tab_hotspots
-from src.tab_durian import render_tab_durian
-from src.tab_comparison import render_tab_comparison
+from src.section_filters import render_header_and_filters
+from src.section_spatiotemporal import render_spatiotemporal_section
+from src.section_hierarchy import render_hierarchy_section
+from src.section_datatable import render_datatable_and_trend_section, render_footer_metadata_bar
+from src.section_statistical import render_statistical_summary_bottom
 
-# Streamlit Page Setup - Wide Layout
+# Streamlit Page Setup - Full Width Executive Mode
 st.set_page_config(
     page_title=APP_TITLE,
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# Custom Executive CSS: Forced Dark Palette & No Text Truncation
+# Executive Dark Theme CSS
 st.markdown("""
 <style>
-    /* Global Background and Typography */
-    .stApp {
+    /* Global Base */
+    html, body, [class*="css"], .stApp {
         background-color: #0E1117 !important;
         color: #F0F6FC !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+        font-size: 16px !important;
     }
 
-    /* Metric Container Cards */
+    /* Container padding */
+    .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 3.5rem !important;
+        max-width: 96% !important;
+    }
+
+    /* Metric Containers */
     [data-testid="stMetric"] {
         background-color: #161B22 !important;
         border: 1px solid #30363D !important;
         border-radius: 8px !important;
-        padding: 14px 18px !important;
-        margin-bottom: 8px !important;
+        padding: 12px 16px !important;
     }
 
-    /* Metric Label - Full Wrapping & No Truncation */
     [data-testid="stMetricLabel"] {
         white-space: normal !important;
         word-break: break-word !important;
-        overflow-wrap: break-word !important;
         color: #8B949E !important;
-        font-size: 0.85rem !important;
+        font-size: 0.95rem !important;
         font-weight: 500 !important;
-        line-height: 1.3 !important;
     }
 
-    /* Metric Value - Full Visibility, No Ellipsis (...) */
     [data-testid="stMetricValue"] {
         white-space: normal !important;
         word-break: break-word !important;
-        overflow-wrap: break-word !important;
-        text-overflow: clip !important;
-        overflow: visible !important;
-        font-size: 1.45rem !important;
+        font-size: 1.5rem !important;
         font-weight: 700 !important;
         color: #F0F6FC !important;
-        line-height: 1.25 !important;
     }
 
-    /* Metric Delta */
-    [data-testid="stMetricDelta"] {
-        white-space: normal !important;
-        word-break: break-word !important;
-        font-size: 0.8rem !important;
-    }
-
-    /* Modern Tabs */
-    button[data-baseweb="tab"] {
-        background-color: transparent !important;
-        color: #8B949E !important;
-        border-bottom: 2px solid transparent !important;
-        font-size: 0.95rem !important;
-        font-weight: 600 !important;
-        padding: 10px 20px !important;
-    }
-    button[data-baseweb="tab"][aria-selected="true"] {
-        color: #FF7043 !important;
-        border-bottom: 2px solid #E53935 !important;
-    }
-
-    /* Expanders & Form Elements */
-    [data-testid="stExpander"] {
+    /* Form Controls & Inputs */
+    div[data-baseweb="select"] > div {
         background-color: #161B22 !important;
-        border: 1px solid #30363D !important;
-        border-radius: 8px !important;
-        margin-bottom: 16px !important;
+        border-color: #30363D !important;
+        color: #F0F6FC !important;
+        border-radius: 6px !important;
     }
 
-    /* Dataframe Header */
+    div[data-baseweb="select"] span {
+        color: #F0F6FC !important;
+    }
+
+    /* Radio buttons */
+    div[role="radiogroup"] {
+        gap: 16px !important;
+    }
+    div[role="radiogroup"] label {
+        color: #C9D1D9 !important;
+        font-size: 0.85rem !important;
+    }
+
+    /* Buttons */
+    .stButton > button {
+        background-color: #161B22 !important;
+        color: #E53935 !important;
+        border: 1px solid #E53935 !important;
+        border-radius: 6px !important;
+        font-weight: 600 !important;
+        font-size: 0.90rem !important;
+        padding: 0.45rem 1rem !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+    .stButton > button:hover {
+        background-color: #E53935 !important;
+        color: #FFFFFF !important;
+        border-color: #C62828 !important;
+    }
+
+    /* Dataframe Header & Cells */
     .stDataFrame {
+        border: 1px solid #30363D !important;
         border-radius: 8px !important;
         overflow: hidden !important;
     }
 
-    /* Spacing */
-    .block-container {
-        padding-top: 2rem !important;
-        padding-bottom: 3rem !important;
+    /* Text Inputs */
+    .stTextInput input {
+        background-color: #161B22 !important;
+        border: 1px solid #30363D !important;
+        color: #F0F6FC !important;
+        border-radius: 6px !important;
+    }
+
+    /* Section Divider */
+    hr {
+        border-color: #21262D !important;
+        margin: 28px 0 !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
 
 def main():
-    # Executive Header Section (Zero Emojis)
-    col_title, col_badge = st.columns([3.2, 0.8])
-    with col_title:
-        st.title(APP_TITLE)
-        st.caption(f"{APP_SUBTITLE} | กรมอุทยานแห่งชาติ สัตว์ป่า และพันธุ์พืช ร่วมกับ สำนักงานเกษตรจังหวัดกาญจนบุรี")
-    with col_badge:
-        st.markdown(f"""
-        <div style="background-color: #161B22; border: 1px solid #30363D; border-left: 3px solid #E53935; 
-                    padding: 8px 12px; border-radius: 6px; text-align: right; margin-top: 10px;">
-            <span style="color: #FF7043; font-weight: 600; font-size: 0.82rem;">Data Integrity Verified</span><br/>
-            <span style="color: #F0F6FC; font-size: 0.82rem;">Hotspots: <b>{TOTAL_EXPECTED_HOTSPOTS:,}</b> จุด</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # Data Loader
+    # 1. Load Data
     with st.spinner("กำลังโหลดข้อมูล..."):
         try:
             data = load_and_process_data()
@@ -134,33 +140,40 @@ def main():
     df_events = data['events']
     df_durian = data['durian_raw']
     df_joined = data['joined']
-    total_expected = data['total_hotspots']
 
-    # Tab Navigation (Clean Minimalist Labels without Emojis)
-    tab1, tab2, tab3 = st.tabs([
-        "ภาพรวมจุดความร้อน (Hotspots Overview)",
-        "พื้นที่ปลูกทุเรียน (Durian Cultivation)",
-        "การเปรียบเทียบเชิงพื้นที่และสถิติ (Spatial & Statistical Comparison)"
-    ])
+    # 2. Section 1 & 2: Header, Global Filters, 4 KPIs, Highlights Strip
+    filtered_events, filtered_durian, filtered_joined, filter_desc, filter_meta = render_header_and_filters(df_events, df_durian)
 
-    with tab1:
-        render_tab_hotspots(df_events, total_expected)
+    st.markdown("<hr/>", unsafe_allow_html=True)
 
-    with tab2:
-        render_tab_durian(df_durian, df_joined)
+    # 3. Section 3: Spatial & Temporal Analysis (Left Temporal, Right Map)
+    render_spatiotemporal_section(filtered_events)
 
-    with tab3:
-        render_tab_comparison(df_joined)
+    st.markdown("<hr/>", unsafe_allow_html=True)
 
-    # Executive Footer
-    st.markdown("<div style='margin-top: 40px;'></div>", unsafe_allow_html=True)
-    st.markdown("""
-    <div style="text-align: center; color: #8B949E; font-size: 0.82rem; padding: 16px 0; border-top: 1px solid #30363D;">
-        <b>Kanchanaburi Wildfire & Durian Spatial Analytics</b> | พัฒนาด้วย Python, Streamlit และ Plotly<br/>
-        ข้อมูลนี้จัดทำเพื่อการวิเคราะห์เชิงวิชาการระดับพื้นที่ปกครอง ปราศจากข้อสรุปเชิงสาเหตุ
-    </div>
-    """, unsafe_allow_html=True)
+    # 4. Section 4: Hierarchy & Categorization (Treemap, Top 10 Tambons, Days, Stacked Bar)
+    render_hierarchy_section(filtered_events)
+
+    st.markdown("<hr/>", unsafe_allow_html=True)
+
+    # 5. Section 5: Data Details & Tables, Annual Durian Trendline
+    render_datatable_and_trend_section(
+        filtered_durian=filtered_durian,
+        filtered_events=filtered_events,
+        sel_years=filter_meta['years'],
+        sel_amp=filter_meta['amphoe']
+    )
+
+    st.markdown("<hr/>", unsafe_allow_html=True)
+
+    # 6. Section คำเตือนและผลการวิเคราะห์ทางสถิติ (ย้ายมาไว้ส่วนล่างสุดของหน้าแดชบอร์ด)
+    render_statistical_summary_bottom(filtered_joined)
+
+    # Executive Footer Metadata Bar
+    render_footer_metadata_bar()
+
 
 
 if __name__ == "__main__":
     main()
+
