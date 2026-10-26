@@ -249,8 +249,18 @@ app.layout = html.Div([
                     min=year_ce_min,
                     max=year_ce_max,
                     step=1,
-                    marks={year: {"label": str(year), "style": {"color": "#CBD5E1", "fontSize": "0.8rem"}}
-                           for year in year_ce_values},
+                    marks={year: {
+                        "label": str(year),
+                        "style": {
+                            "color": "#F1F5F9",
+                            "backgroundColor": "#000000",
+                            "padding": "2px 7px",
+                            "borderRadius": "4px",
+                            "border": "1px solid #334155",
+                            "fontSize": "0.8rem",
+                            "fontWeight": "600",
+                        }
+                    } for year in year_ce_values},
                     value=[year_ce_min, year_ce_max],
                     tooltip={"placement": "bottom", "always_visible": True},
                     className="year-range-slider",
@@ -583,7 +593,7 @@ def render_filter_pills(store, year_value):
             yr_label = str(int(year_value))
         # Only show pill if not full range
         if year_value != [year_ce_min, year_ce_max]:
-            pills.append(html.Span(["📅 ปี ค.ศ.: ", html.Strong(yr_label)], className="filter-pill"))
+            pills.append(html.Span(["📅 ปี ค.ศ.: ", html.Strong(yr_label)], className="filter-pill filter-pill-year"))
     if store.get("tambon"):
         pills.append(html.Span(["📍 ตำบล: ", html.Strong(store["tambon"])], className="filter-pill"))
     if store.get("amphoe") and not store.get("tambon"):
