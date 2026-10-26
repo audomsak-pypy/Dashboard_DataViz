@@ -5,6 +5,7 @@ Global cross-filtering across maps, charts, and tables.
 """
 import sys
 import os
+import re
 import pandas as pd
 import numpy as np
 
@@ -1018,7 +1019,7 @@ def update_entire_dashboard(filter_state, year_value, map_basemap, map_mode):
         fig_treemap.update_layout(
             **get_theme(m=dict(l=120, r=85, t=10, b=20), showlegend=False),
             coloraxis_showscale=False,
-            xaxis=dict(gridcolor="#1E293B", title="", cliponaxis=False),
+            xaxis=dict(gridcolor="#1E293B", title=""),
             yaxis=dict(gridcolor="#1E293B", title=""),
         )
     else:
