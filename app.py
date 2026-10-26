@@ -32,6 +32,20 @@ from utils.data_loader import (
 df_events_all = load_hotspot_events()
 df_joined_all = load_joined_table()
 
+# Surface the preprocessing rationale using the raw-file evidence rather than
+# an unverified, hard-coded figure in the user interface.
+raw_hotspot_notes = pd.read_csv(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "cleaned_dataset_Wildfire.csv"),
+    encoding="utf-8-sig",
+    usecols=["หมายเหตุ"],
+)
+raw_hotspot_total = int(len(raw_hotspot_notes))
+excluded_non_wildfire_count = int(
+    raw_hotspot_notes["หมายเหตุ"].astype(str).str.contains(
+        "การจัดการเชื้อเพลิง|เข้าตรวจสอบแล้วไม่พบไฟ|ดำเนินคดี", na=False
+    ).sum()
+)
+
 # Fail early if the stored data is not the validated dashboard dataset.
 assert len(df_events_all) == EXPECTED_TOTAL_HOTSPOTS
 assert df_joined_all["hotspot_count"].sum() == EXPECTED_TOTAL_HOTSPOTS
@@ -76,6 +90,9 @@ latest_data_date = df_events_all["date_parsed"].max().strftime("%Y-%m-%d")
 reporting_day_count = int(df_events_all["date_parsed"].dt.normalize().nunique())
 coordinate_rows = df_events_all.dropna(subset=["LAT", "LONG"])
 duplicate_coordinate_count = int(coordinate_rows.duplicated(subset=["LAT", "LONG"]).sum())
+default_view_hotspot_total = int(
+    df_events_all["date_parsed"].dt.year.between(*DEFAULT_YEAR_RANGE).sum()
+)
 
 
 def filter_dashboard_data(filter_state, year_range):
@@ -416,10 +433,30 @@ app.layout = html.Div([
                     "จุดความร้อนแยกตามอำเภอและประเภทป่าอนุรักษ์",
                     dcc.Graph(id="chart-district-forest", style={"height": "300px"}),
                 ),
-            ], className="secondary-visuals grid-2x2"),
+                chart_card(
+                    "ความสัมพันธ์ระหว่างพื้นที่ปลูกทุเรียนและจำนวนจุดความร้อนรายตำบล",
+                    comparison_with_disclaimer(
+                        dcc.Graph(
+                            id="chart-durian-hotspot-scatter",
+                            style={"height": "390px"},
+                        )
+                    ),
+                    wide=True,
+                ),
+            ], className="secondary-visuals grid-3x2"),
         ], className="question-section section-more"),
         html.Footer([
             html.Div(id="dynamic-context-card", className="spatial-facts-footer"),
+            html.P(
+                "หมายเหตุ: จำนวนจุดความร้อนที่แสดงผลได้กรองไม่รวมจุดจากการจัดการเชื้อเพลิง "
+                "จุดที่เจ้าหน้าที่เข้าตรวจสอบแล้วไม่พบไฟ และพิกัดแปลงที่มีการดำเนินคดี "
+                f"จากข้อมูลดิบรวม {raw_hotspot_total:,} จุด จึงเหลือ {EXPECTED_TOTAL_HOTSPOTS:,} จุด "
+                f"และหน้าเริ่มต้นช่วง ค.ศ. {DEFAULT_YEAR_RANGE[0]}–{DEFAULT_YEAR_RANGE[1]} "
+                f"แสดง {default_view_hotspot_total:,} จุด (ไม่รวมระเบียน ค.ศ. 2023 จำนวน "
+                f"{EXPECTED_TOTAL_HOTSPOTS - default_view_hotspot_total:,} จุด) เพื่อสะท้อนเฉพาะระเบียน"
+                "จุดความร้อนที่ผ่านเกณฑ์การแสดงผล",
+                className="data-transparency-note",
+            ),
             html.Div([
                 html.Span(f"อัปเดตข้อมูลล่าสุด: {latest_data_date}"),
                 html.Span(f"จำนวนวันที่มีรายงานการตรวจพบ: {reporting_day_count:,} วัน"),
@@ -444,6 +481,7 @@ app.layout = html.Div([
     Input("chart-seasonality", "clickData"),
     Input("chart-recurrence", "clickData"),
     Input("chart-district-forest", "clickData"),
+    Input("chart-durian-hotspot-scatter", "clickData"),
     Input("filter-amphoe", "value"),
     Input("filter-pa", "value"),
     Input("filter-conf", "value"),
@@ -452,7 +490,7 @@ app.layout = html.Div([
 )
 def handle_all_cross_filters(n_reset, map_click, conf_click, pa_click, act_click,
                              hour_month_click, season_click,
-                             recurrence_click, district_forest_click,
+                             recurrence_click, district_forest_click, scatter_click,
                              amphoe_dd, pa_dd, conf_dd, current_store):
     trigger = ctx.triggered_id
     state = dict(current_store) if current_store else {
@@ -549,7 +587,14 @@ def handle_all_cross_filters(n_reset, map_click, conf_click, pa_click, act_click
             state["amphoe"], state["pa"] = custom_data[0], custom_data[1]
             state["tambon"] = None
 
-    # 10. Dropdown inputs
+    # 10. Durian-hotspot scatter point → filter by the full tambon key.
+    if trigger == "chart-durian-hotspot-scatter" and scatter_click:
+        point = (scatter_click.get("points") or [None])[0]
+        custom_data = point.get("customdata") if point else None
+        if custom_data and len(custom_data) >= 2:
+            state["amphoe"], state["tambon"] = custom_data[0], custom_data[1]
+
+    # 11. Dropdown inputs
     if trigger == "filter-amphoe":
         state["amphoe"] = amphoe_dd
     if trigger == "filter-pa":
@@ -670,6 +715,7 @@ def render_filter_pills(store, year_value):
     Output("chart-pa-treemap",        "figure"),
     Output("chart-recurrence",        "figure"),
     Output("chart-district-forest",   "figure"),
+    Output("chart-durian-hotspot-scatter", "figure"),
     Output("dynamic-context-card",    "children"),
     Output("spatial-map",             "figure"),
     Output("chart-durian-trend",      "figure"),
@@ -1120,6 +1166,65 @@ def update_entire_dashboard(filter_state, year_value, map_basemap, map_mode):
         joined_active["selected_hotspot_count"].fillna(0).astype(int)
     )
 
+    # One scatter point represents one district-tambon pair.  Use the latest
+    # available durian survey inside the selected year range and the active
+    # filtered hotspot total; no fitted line is used.
+    latest_durian_by_tambon = (
+        joined_active.dropna(subset=["durian_area_rai"])
+        .sort_values("พ.ศ.")
+        .groupby(["อำเภอ_norm", "ตำบล_norm"], as_index=False)
+        .tail(1)
+        [["อำเภอ_norm", "ตำบล_norm", "พ.ศ.", "durian_area_rai"]]
+    )
+    filtered_hotspots_by_tambon = (
+        df_h.groupby(["อำเภอ_norm", "ตำบล_norm"])
+        .size()
+        .rename("filtered_hotspot_count")
+        .reset_index()
+    )
+    scatter_data = latest_durian_by_tambon.merge(
+        filtered_hotspots_by_tambon,
+        on=["อำเภอ_norm", "ตำบล_norm"],
+        how="left",
+        validate="one_to_one",
+    )
+    scatter_data["filtered_hotspot_count"] = (
+        scatter_data["filtered_hotspot_count"].fillna(0).astype(int)
+    )
+    scatter_data["พื้นที่"] = (
+        scatter_data["ตำบล_norm"] + " · " + scatter_data["อำเภอ_norm"]
+    )
+    if not scatter_data.empty:
+        fig_durian_hotspot_scatter = px.scatter(
+            scatter_data,
+            x="durian_area_rai",
+            y="filtered_hotspot_count",
+            hover_name="พื้นที่",
+            custom_data=["อำเภอ_norm", "ตำบล_norm", "พ.ศ."],
+            labels={
+                "durian_area_rai": "พื้นที่เพาะปลูกทุเรียน (ไร่)",
+                "filtered_hotspot_count": "จำนวนจุดความร้อน (จุด)",
+            },
+        )
+        fig_durian_hotspot_scatter.update_traces(
+            marker=dict(size=11, color="#84CC16", line=dict(color="#D9F99D", width=1)),
+            hovertemplate=(
+                "%{hovertext}<br>พื้นที่ทุเรียน: %{x:,.1f} ไร่"
+                "<br>จุดความร้อน: %{y:,} จุด"
+                "<br>ปีข้อมูลทุเรียนล่าสุด: พ.ศ. %{customdata[2]:.0f}"
+                "<extra></extra>"
+            ),
+        )
+        fig_durian_hotspot_scatter.update_layout(
+            **get_theme(m=dict(l=65, r=25, t=20, b=55), showlegend=False)
+        )
+        fig_durian_hotspot_scatter.update_xaxes(gridcolor="#1E293B", zeroline=False)
+        fig_durian_hotspot_scatter.update_yaxes(gridcolor="#1E293B", zeroline=False)
+    else:
+        fig_durian_hotspot_scatter = empty_chart(
+            "ไม่พบข้อมูลพื้นที่ทุเรียนสำหรับสร้างกราฟรายตำบล"
+        )
+
     group_has = joined_active[joined_active["durian_area_rai"] > 0]
     group_no  = joined_active[joined_active["durian_area_rai"] == 0]
     group_missing = joined_active[joined_active["durian_area_rai"].isna()]
@@ -1356,6 +1461,7 @@ def update_entire_dashboard(filter_state, year_value, map_basemap, map_mode):
         fig_treemap,
         fig_recurrence,
         fig_district_forest,
+        fig_durian_hotspot_scatter,
         context_card,
         fig_map,
         fig_durian_line,
