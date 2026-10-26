@@ -1,16 +1,18 @@
 """
 Phase 2: Data Model Preparation
-ตาม HanDoff.md Phase 2 + Data_Dictionary.md
+ตาม HanDoff.md Phase 2 + Data_Dictionary.md + HANDOFF_Dashboard_Pre_Presentation_Fixes.md
 
 Actions:
 1. Parse Dates and Time (convert Float to HH:MM)
-2. Normalize geographic strings
-3. Aggregate cleaned_dataset_Wildfire.csv by [อำเภอ_norm, ตำบล_norm, พ.ศ.] BEFORE joining
-4. Perform OUTER JOIN with wildfire_point.csv
-5. Apply Zero/NaN logic according to DATA_DICTIONARY.md
+2. Filter out non-wildfire records (การจัดการเชื้อเพลิง, เข้าตรวจสอบแล้วไม่พบไฟ, ดำเนินคดี)
+3. Clean ประเภท Hotspot (nominal, low, high -> ไม่ระบุ)
+4. Normalize geographic strings
+5. Aggregate cleaned_dataset_Wildfire.csv by [อำเภอ_norm, ตำบล_norm, พ.ศ.] BEFORE joining
+6. Perform OUTER JOIN with wildfire_point.csv
+7. Apply Zero/NaN logic according to DATA_DICTIONARY.md
 
-Test: Assert sum(hotspot_count) == 8606
-Output: data_prep.py (this file) + processed data saved to data/
+Test: Assert sum(hotspot_count) == 7865
+Output: processed data saved to data/
 """
 import sys
 import io
@@ -21,7 +23,7 @@ import numpy as np
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
 # ─── Constants ────────────────────────────────────────────────
-EXPECTED_TOTAL_HOTSPOTS = 8606
+EXPECTED_TOTAL_HOTSPOTS = 7865
 
 THAI_MONTH_MAP = {
     "ม.ค.":  1, "ก.พ.":  2, "มี.ค.":  3, "เม.ย.":  4,
@@ -84,37 +86,46 @@ print(f"  Durian  raw shape : {df_durian_raw.shape}")
 # ─── STEP 2: Transform cleaned_dataset_Wildfire.csv ──────────
 print()
 print("=" * 60)
-print("STEP 2: Transforming Hotspot data")
+print("STEP 2: Transforming Hotspot data & Data Cleaning")
 print("=" * 60)
 
 df_h = df_hotspot_raw.copy()
 
-# 2a. Parse date
+# 2a. Filter out non-wildfire records per HANDOFF_Dashboard_Pre_Presentation_Fixes.md
+exclude_mask = df_h["หมายเหตุ"].astype(str).str.contains(
+    "การจัดการเชื้อเพลิง|เข้าตรวจสอบแล้วไม่พบไฟ|ดำเนินคดี", na=False
+)
+print(f"  Excluding non-wildfire rows from หมายเหตุ : {exclude_mask.sum()} rows")
+df_h = df_h[~exclude_mask].copy()
+print(f"  Cleaned Hotspot records                   : {len(df_h)} rows")
+
+# 2b. Parse date
 df_h["date_parsed"] = df_h["ว/ด/ป"].apply(parse_thai_date)
 parse_fail = df_h["date_parsed"].isna().sum()
 print(f"  Date parse failures : {parse_fail} (expected 0)")
 
-# 2b. Derive พ.ศ. (Buddhist Era = CE + 543)
+# 2c. Derive พ.ศ. (Buddhist Era = CE + 543)
 df_h["พ.ศ."] = df_h["date_parsed"].dt.year + 543
 
-# 2c. Parse เวลา float → HH:MM + hour_of_day
+# 2d. Parse เวลา float → HH:MM + hour_of_day
 df_h[["time_hhmm", "hour_of_day"]] = df_h["เวลา"].apply(
     lambda v: pd.Series(parse_time_float(v))
 )
 print(f"  time_hhmm sample  : {df_h['time_hhmm'].head(5).tolist()}")
 print(f"  hour_of_day range : {df_h['hour_of_day'].min()} – {df_h['hour_of_day'].max()}")
 
-# 2d. Normalize geographic strings (strip whitespace → join keys)
+# 2e. Normalize geographic strings (strip whitespace → join keys)
 df_h["อำเภอ_norm"] = df_h["อำเภอ"].str.strip()
 df_h["ตำบล_norm"]  = df_h["ตำบล"].str.strip()
 
-# 2e. Clean ประเภท_Hotspot
-df_h["ประเภท_Hotspot_cleaned"] = df_h["ประเภท Hotspot"].replace(HOTSPOT_TYPE_REMAP)
+# 2f. Clean ประเภท Hotspot (remap nominal, low, high to ไม่ระบุ)
+df_h["ประเภท Hotspot"] = df_h["ประเภท Hotspot"].replace(HOTSPOT_TYPE_REMAP)
+df_h["ประเภท_Hotspot_cleaned"] = df_h["ประเภท Hotspot"]
 print(f"  ประเภท_Hotspot_cleaned value counts:")
 for k, v in df_h["ประเภท_Hotspot_cleaned"].value_counts().items():
     print(f"    {k}: {v}")
 
-# 2f. Month column for temporal analysis
+# 2g. Month column for temporal analysis
 df_h["month"] = df_h["date_parsed"].dt.month
 
 print(f"  Hotspot df shape after transforms: {df_h.shape}")
@@ -150,7 +161,6 @@ df_d = df_durian_raw.copy()
 df_d["อำเภอ_norm"]       = df_d["อำเภอ"].str.strip()
 df_d["ตำบล_norm"]        = df_d["ตำบล"].str.strip()
 df_d["durian_area_rai"]  = df_d["จำนวน"]   # rename as per Data Dictionary
-# Note: ในข้อมูลนี้ nulls = 0, แต่เก็บ logic ไว้ถูกต้องตาม Data Dictionary
 
 print(f"  Durian df shape    : {df_d.shape}")
 print(f"  พ.ศ. range         : {df_d['พ.ศ.'].min()} – {df_d['พ.ศ.'].max()}")
@@ -163,7 +173,6 @@ print("=" * 60)
 print("STEP 5: OUTER JOIN on [อำเภอ_norm, ตำบล_norm, พ.ศ.]")
 print("=" * 60)
 
-# Select columns needed from durian
 df_d_for_join = df_d[["จังหวัด", "อำเภอ_norm", "ตำบล_norm", "พ.ศ.", "durian_area_rai"]].copy()
 
 df_joined = pd.merge(
@@ -174,7 +183,6 @@ df_joined = pd.merge(
     suffixes=("_hotspot", "_durian"),
 )
 
-# Reconcile จังหวัด column (may be NaN from outer join)
 if "จังหวัด_hotspot" in df_joined.columns:
     df_joined["จังหวัด"] = df_joined["จังหวัด_hotspot"].fillna(df_joined["จังหวัด_durian"])
     df_joined.drop(columns=["จังหวัด_hotspot", "จังหวัด_durian"], inplace=True)
@@ -189,11 +197,7 @@ print("=" * 60)
 print("STEP 6: Applying Zero/NaN logic (per Data Dictionary)")
 print("=" * 60)
 
-# hotspot_count NaN → 0 (no fire reported)
 df_joined["hotspot_count"] = df_joined["hotspot_count"].fillna(0).astype(int)
-
-# durian_area_rai NaN → KEEP as NaN (no survey data)
-# (no action needed — already NaN)
 
 print(f"  hotspot_count nulls (after fill)    : {df_joined['hotspot_count'].isna().sum()}")
 print(f"  durian_area_rai nulls (after fill)  : {df_joined['durian_area_rai'].isna().sum()}")
@@ -207,41 +211,22 @@ assert total_joined == EXPECTED_TOTAL_HOTSPOTS, (
 )
 print(f"  ✓ POST-JOIN ASSERTION PASSED")
 
-# ─── Print joined dataframe info ──────────────────────────────
-print()
-print("=" * 60)
-print("JOINED DATAFRAME SUMMARY")
-print("=" * 60)
-print(f"  Shape   : {df_joined.shape}")
-print(f"  Columns : {df_joined.columns.tolist()}")
-print()
-print(df_joined.dtypes.to_string())
-print()
-print("  Head:")
-print(df_joined.head(10).to_string())
-print()
-print("  Tail:")
-print(df_joined.tail(5).to_string())
-
 # ─── SAVE OUTPUTS ─────────────────────────────────────────────
 print()
 print("=" * 60)
 print("SAVING PROCESSED DATA")
 print("=" * 60)
 
-# Save full event-level hotspot (with all transformations)
 df_h.to_parquet("data/hotspot_events.parquet", index=False)
 print("  ✓ data/hotspot_events.parquet  (event-level, all transforms)")
 
-# Save aggregated hotspot
 df_hotspot_agg.to_parquet("data/hotspot_agg.parquet", index=False)
 print("  ✓ data/hotspot_agg.parquet     (aggregated by อำเภอ/ตำบล/พ.ศ.)")
 
-# Save joined table
 df_joined.to_parquet("data/joined_table.parquet", index=False)
 print("  ✓ data/joined_table.parquet    (OUTER JOIN result for Tab 2 & 3)")
 
 print()
 print("=" * 60)
-print("  Phase 2 COMPLETE ✓")
+print("  Data Preparation COMPLETE ✓")
 print("=" * 60)

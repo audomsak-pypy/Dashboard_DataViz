@@ -13,7 +13,7 @@ JOINED_TABLE_PATH   = os.path.join(DATA_DIR, "joined_table.parquet")
 APP_TITLE = "Kanchanaburi Wildfire & Durian Dashboard"
 
 # ─── BRD Constants ────────────────────────────────────────────
-EXPECTED_TOTAL_HOTSPOTS = 8606
+EXPECTED_TOTAL_HOTSPOTS = 7865
 
 # ─── Disclaimer (BRD Section 5) ───────────────────────────────
 CAUSAL_DISCLAIMER = (
@@ -23,8 +23,7 @@ CAUSAL_DISCLAIMER = (
 )
 
 MAP_CRS_NOTE = (
-    "CRS assumption: Displayed strictly on standard geographic projection. "
-    "Spatial distance analysis is disabled."
+    "ข้อจำกัด: แผนที่ใช้ระบบพิกัดภูมิศาสตร์มาตรฐาน ไม่รองรับการวิเคราะห์ระยะทางจริง (Distance Analysis)"
 )
 
 # ─── Thai Month Labels ────────────────────────────────────────

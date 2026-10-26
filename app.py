@@ -40,6 +40,15 @@ tambon_opts = sorted(df_events_all["ตำบล_norm"].dropna().unique().tolist
 pa_opts     = sorted(df_events_all["ประเภทป่าอนุรักษ์"].dropna().unique().tolist())
 conf_opts   = sorted(df_events_all["CONFEDENCE"].dropna().unique().tolist())
 
+CONF_MAP_EN_TO_TH = {
+    "high": "สูง",
+    "nominal": "ปานกลาง",
+    "low": "ต่ำ",
+}
+CONF_MAP_TH_TO_EN = {v: k for k, v in CONF_MAP_EN_TO_TH.items()}
+DEFAULT_YEAR_RANGE = [2024, 2025]  # พ.ศ. 2567 - 2568 per HANDOFF_Dashboard_Pre_Presentation_Fixes.md
+
+
 year_ce_min = int(df_events_all["date_parsed"].dt.year.min())
 year_ce_max = int(df_events_all["date_parsed"].dt.year.max())
 YEAR_FILTER_ALL = "all"
@@ -237,8 +246,9 @@ app.layout = html.Div([
                 html.Label("ความเชื่อมั่น", className="filter-label"),
                 dcc.Dropdown(
                     id="filter-conf",
-                    options=[{"label": confidence, "value": confidence} for confidence in conf_opts],
-                    placeholder="ทุกระดับ",
+                    options=[{"label": CONF_MAP_EN_TO_TH.get(confidence, confidence), "value": confidence}
+                             for confidence in conf_opts],
+                    placeholder="ทุกระดับความเชื่อมั่น",
                     className="filter-select",
                 ),
             ], className="filter-field"),
@@ -261,7 +271,7 @@ app.layout = html.Div([
                             "fontWeight": "600",
                         }
                     } for year in year_ce_values},
-                    value=[year_ce_min, year_ce_max],
+                    value=DEFAULT_YEAR_RANGE,
                     tooltip={"placement": "bottom", "always_visible": True},
                     className="year-range-slider",
                 ),
@@ -291,7 +301,7 @@ app.layout = html.Div([
                 html.P("ขอบเขตการปกครอง", className="kpi-meta"),
             ], className="kpi-card kpi-area"),
             html.Div([
-                html.P("คุณภาพข้อมูลจุดความร้อน", className="kpi-label"),
+                html.P("สัดส่วนความเชื่อมั่นระดับปานกลางขึ้นไป", className="kpi-label"),
                 html.Div(id="kpi-quality-value", className="kpi-value"),
                 html.P(id="kpi-quality-meta", className="kpi-meta"),
             ], className="kpi-card kpi-quality"),
@@ -308,13 +318,16 @@ app.layout = html.Div([
                 ], className="question-heading"),
                 html.P(id="answer-when", className="section-answer"),
                 html.Div([
-                    chart_card("ช่วงเวลาที่พบจุดความร้อนมาก", html.Div(id="top-hours-list")),
+                    chart_card(
+                        "ช่วงเวลาที่ดาวเทียมตรวจพบ (Satellite Overpass)",
+                        html.Div(id="top-hours-list"),
+                    ),
                     chart_card(
                         "จุดความร้อนรายเดือนแยกปี",
                         dcc.Graph(id="chart-activity", style={"height": "220px"}),
                     ),
                     chart_card(
-                        "จุดความร้อนตามเดือนและชั่วโมง",
+                        "ความหนาแน่นจุดความร้อนรายเดือนและรายปี (คลิกช่องเพื่อกรอง)",
                         dcc.Graph(id="chart-hour-month", style={"height": "220px"}),
                     ),
                 ], className="when-stack"),
@@ -326,7 +339,7 @@ app.layout = html.Div([
                 ], className="question-heading"),
                 html.P(id="answer-where", className="section-answer"),
                 chart_card(
-                    "แผนที่จุดความร้อน (Scatter / Density)",
+                    "แผนที่จุดความร้อน (จุดพิกัด / ความหนาแน่น)",
                     html.Div([
                         html.P(MAP_CRS_NOTE, className="map-crs-note"),
                         dcc.Graph(
@@ -342,7 +355,7 @@ app.layout = html.Div([
                             dcc.RadioItems(
                                 id="map-mode",
                                 options=[
-                                    {"label": "จุด", "value": "scatter"},
+                                    {"label": "จุดพิกัด", "value": "scatter"},
                                     {"label": "ความหนาแน่น", "value": "density"},
                                 ],
                                 value="scatter",
@@ -463,12 +476,13 @@ def handle_all_cross_filters(n_reset, map_click, conf_click, pa_click, act_click
         except Exception:
             pass
 
-    # 3. Confidence Donut clicked
+    # 3. Confidence Donut clicked (supports Thai labels)
     if trigger == "chart-conf-donut" and conf_click:
         try:
             pt = conf_click["points"][0]
             label = pt.get("label")
-            state["conf"] = None if state.get("conf") == label else label
+            raw_val = CONF_MAP_TH_TO_EN.get(label, label)
+            state["conf"] = None if state.get("conf") == raw_val else raw_val
         except Exception:
             pass
 
@@ -496,17 +510,15 @@ def handle_all_cross_filters(n_reset, map_click, conf_click, pa_click, act_click
         except Exception:
             pass
 
-    # 6. Month/hour heatmap clicked
+    # 6. Month x Year heatmap clicked (x=Month label, y=BE year)
     if trigger == "chart-hour-month" and hour_month_click:
         point = (hour_month_click.get("points") or [None])[0]
         if point:
-            month = {label: value for value, label in MONTH_LABELS.items()}.get(
-                point.get("y")
-            )
-            hour = point.get("x")
-            if month and isinstance(hour, (int, float)):
-                state["month"] = month
-                state["hour"] = int(hour)
+            m_label = point.get("x")
+            rev_map = {v: k for k, v in MONTH_LABELS.items()}
+            m_val = rev_map.get(m_label)
+            if m_val:
+                state["month"] = None if state.get("month") == m_val else m_val
                 state["season"] = None
 
     # 7. Seasonality chart clicked
@@ -550,13 +562,28 @@ def handle_all_cross_filters(n_reset, map_click, conf_click, pa_click, act_click
 @app.callback(
     Output("filter-year", "value"),
     Input("chart-activity", "clickData"),
+    Input("chart-hour-month", "clickData"),
     Input("btn-reset", "n_clicks"),
     prevent_initial_call=True,
 )
-def sync_year_controls(activity_click, n_reset):
-    """Clicking an activity bar narrows the slider to just that year; Reset restores full range."""
+def sync_year_controls(activity_click, heatmap_click, n_reset):
+    """Clicking an activity bar or heatmap cell narrows slider to that year; Reset restores default range."""
     if ctx.triggered_id == "btn-reset":
-        return [year_ce_min, year_ce_max]
+        return DEFAULT_YEAR_RANGE
+
+    if ctx.triggered_id == "chart-hour-month" and heatmap_click:
+        point = (heatmap_click.get("points") or [None])[0]
+        if point:
+            y_val = point.get("y")
+            # y_val is BE year int or string like 2567 or 'พ.ศ. 2567'
+            try:
+                be_yr = int(re.sub(r'\D', '', str(y_val)))
+                ce_yr = be_yr - 543
+                if year_ce_min <= ce_yr <= year_ce_max:
+                    return [ce_yr, ce_yr]
+            except Exception:
+                pass
+        return dash.no_update
 
     click_data = activity_click
     points = (click_data or {}).get("points") or []
@@ -599,7 +626,7 @@ def render_filter_pills(store, year_value):
     if store.get("amphoe") and not store.get("tambon"):
         pills.append(html.Span(["🏛️ อำเภอ: ", html.Strong(store["amphoe"])], className="filter-pill"))
     if store.get("conf"):
-        pills.append(html.Span(["📡 ความเชื่อมั่น: ", html.Strong(store["conf"])], className="filter-pill"))
+        pills.append(html.Span(["📡 ความเชื่อมั่น: ", html.Strong(CONF_MAP_EN_TO_TH.get(store["conf"], store["conf"]))], className="filter-pill"))
     if store.get("pa"):
         pills.append(html.Span(["🌲 ป่าอนุรักษ์: ", html.Strong(store["pa"])], className="filter-pill"))
     if store.get("month"):
@@ -709,7 +736,12 @@ def update_entire_dashboard(filter_state, year_value, map_basemap, map_mode):
     quality_pct = metrics["quality_pct"]
     durian_display = "⬜ Missing" if cur_durian_rai is None else f"{cur_durian_rai:,.1f} ไร่"
     kpi_hotspot_value = f"{cur_hotspots:,} จุด"
-    kpi_hotspot_delta = "ไม่มีข้อมูลปีก่อนหน้า" if yoy is None else f"เทียบปีก่อนหน้า: {yoy:+.1f}%"
+    delta_str = "ไม่มีข้อมูลปีก่อนหน้า" if yoy is None else f"เทียบปีก่อนหน้า: {yoy:+.1f}%"
+    kpi_hotspot_delta = html.Div([
+        html.Span(delta_str),
+        html.Small("* ข้อมูลปี 2566 และ 2568 ไม่เต็มปี การเปรียบเทียบอาจคลาดเคลื่อน",
+                   style={"display": "block", "fontSize": "0.70rem", "color": "#94A3B8", "marginTop": "3px", "fontWeight": "normal"}),
+    ])
     kpi_durian_value = durian_display
     kpi_durian_meta = f"พ.ศ. {metrics['durian_year']}"
     if t_filter and a_filter:
@@ -721,7 +753,7 @@ def update_entire_dashboard(filter_state, year_value, map_basemap, map_mode):
     else:
         kpi_selected_area = "จังหวัดกาญจนบุรี"
     kpi_quality_value = f"{quality_pct:.1f}%"
-    kpi_quality_meta = f"High/Nominal {metrics['quality_count']:,} จาก {cur_hotspots:,} จุด"
+    kpi_quality_meta = f"สูง/ปานกลาง {metrics['quality_count']:,} จาก {cur_hotspots:,} จุด"
 
     if df_h.empty:
         answer_when = "ไม่พบข้อมูลจุดความร้อนในช่วงตัวกรองที่เลือก"
@@ -770,10 +802,6 @@ def update_entire_dashboard(filter_state, year_value, map_basemap, map_mode):
                 html.Span("02", className="insight-number"),
                 html.Span(f"ตำบลที่มีจำนวนสูงสุด: {top_tambon_name} ({top_tambon_count:,} จุด)"),
             ], className="insight-item"),
-            html.P([
-                html.Span("03", className="insight-number"),
-                html.Span(f"ชั่วโมงสูงสุด: {peak_hour:02d}:00–{peak_hour:02d}:59 ({peak_hour_share:.1f}%)"),
-            ], className="insight-item"),
         ]
     answer_trends = (
         f"พื้นที่ทุเรียนสำหรับ พ.ศ. {metrics['durian_year']}: {durian_display}"
@@ -791,6 +819,10 @@ def update_entire_dashboard(filter_state, year_value, map_basemap, map_mode):
                 html.Span(f"{c:,}", className="rank-list-badge"),
             ], className="rank-list-item")
         )
+    hours_items.append(
+        html.P("* เป็นรอบเวลาโคจรของดาวเทียม Suomi NPP ไม่ใช่เวลาเริ่มต้นของการเกิดไฟป่า",
+               style={"fontSize": "0.74rem", "color": "#94A3B8", "marginTop": "8px", "marginBottom": "0", "lineHeight": "1.4"})
+    )
     if not hours_items:
         hours_items = [html.P("ไม่พบข้อมูลชั่วโมง", style={"fontSize": "0.75rem", "color": "#64748B"})]
 
@@ -861,41 +893,48 @@ def update_entire_dashboard(filter_state, year_value, map_basemap, map_mode):
     else:
         fig_activity = empty_chart("ไม่พบข้อมูลรายเดือนในช่วงตัวกรองที่เลือก")
 
-    # ── 6a. Monthly/hourly heatmap ─────────────────────────────
-    hour_counts = (
-        df_h.groupby(["month", "hour_of_day"])
+    # ── 6a. Month x Year Heatmap (ความหนาแน่นจุดความร้อนรายเดือนและรายปี) ──────
+    df_h_hm = df_h.assign(year_be=df_h["date_parsed"].dt.year + 543)
+    month_year_counts = (
+        df_h_hm.groupby(["year_be", "month"])
         .size()
         .rename("count")
         .reset_index()
     )
-    if not hour_counts.empty:
-        months_with_events = sorted(int(month) for month in hour_counts["month"].unique())
-        hour_matrix = (
-            hour_counts.pivot(index="month", columns="hour_of_day", values="count")
-            .reindex(index=months_with_events, columns=range(24))
+    if not month_year_counts.empty:
+        all_months = list(range(1, 13))
+        years_be = sorted(int(y) for y in month_year_counts["year_be"].unique())
+        my_matrix = (
+            month_year_counts.pivot(index="year_be", columns="month", values="count")
+            .reindex(index=years_be, columns=all_months)
             .fillna(0)
         )
         fig_hour_month = go.Figure(go.Heatmap(
-            z=hour_matrix.to_numpy(),
-            x=list(range(24)),
-            y=[MONTH_LABELS[month] for month in months_with_events],
+            z=my_matrix.to_numpy(),
+            x=[MONTH_LABELS[m] for m in all_months],
+            y=[f"พ.ศ. {y}" for y in years_be],
             colorscale="YlOrRd",
-            customdata=hour_matrix.to_numpy(),
+            customdata=my_matrix.to_numpy(),
             colorbar=dict(title="จุด", tickfont=dict(color="#E2E8F0")),
-            hovertemplate="%{y} %{x:02d}:00–%{x:02d}:59<br>%{z:,} จุด<extra></extra>",
+            hovertemplate="%{y} เดือน %{x}<br>จุดความร้อน: %{z:,.0f} จุด<extra></extra>",
         ))
         fig_hour_month.update_layout(
-            **get_theme(m=dict(l=55, r=20, t=15, b=35))
+            **get_theme(m=dict(l=65, r=20, t=15, b=35))
         )
         fig_hour_month.update_xaxes(
-            tickmode="array",
-            tickvals=list(range(24)),
-            ticktext=[f"{hour:02d}" for hour in range(24)],
-            title="ชั่วโมง",
+            categoryorder="array",
+            categoryarray=[MONTH_LABELS[m] for m in all_months],
+            title="เดือน",
+            gridcolor="#1E293B",
         )
-        fig_hour_month.update_yaxes(title="เดือน")
+        fig_hour_month.update_yaxes(
+            categoryorder="array",
+            categoryarray=[f"พ.ศ. {y}" for y in years_be],
+            title="ปี พ.ศ.",
+            gridcolor="#1E293B",
+        )
     else:
-        fig_hour_month = empty_chart("ไม่พบข้อมูลเดือนและชั่วโมงในช่วงตัวกรองที่เลือก")
+        fig_hour_month = empty_chart("ไม่พบข้อมูลรายเดือนและรายปีในช่วงตัวกรองที่เลือก")
 
     # ── 7. Seasonality indicator ───────────────────────────────
     dry_months = {11, 12, 1, 2, 3, 4}
@@ -918,29 +957,30 @@ def update_entire_dashboard(filter_state, year_value, map_basemap, map_mode):
         **get_theme(m=dict(l=10, r=10, t=10, b=10), showlegend=False)
     )
 
-    # ── 8. Confidence Donut (Thick Donut Ring with Center Text) ──
+    # ── 8. Confidence Donut (Thick Donut Ring with Center Text - Thai Labels) ──
     conf_dist = df_h["CONFEDENCE"].value_counts().reset_index()
     conf_dist.columns = ["CONFEDENCE", "count"]
-    conf_color_map = {"nominal": "#F59E0B", "low": "#38BDF8", "high": "#EF4444"}
+    conf_dist["ระดับความเชื่อมั่น"] = conf_dist["CONFEDENCE"].map(CONF_MAP_EN_TO_TH).fillna("ไม่ระบุ")
+    conf_color_map = {"สูง": "#EF4444", "ปานกลาง": "#F59E0B", "ต่ำ": "#38BDF8", "ไม่ระบุ": "#94A3B8"}
     fig_donut = px.pie(
-        conf_dist, names="CONFEDENCE", values="count",
+        conf_dist, names="ระดับความเชื่อมั่น", values="count",
         hole=0.68,
-        color="CONFEDENCE",
+        color="ระดับความเชื่อมั่น",
         color_discrete_map=conf_color_map,
+        category_orders={"ระดับความเชื่อมั่น": ["สูง", "ปานกลาง", "ต่ำ"]},
     )
-    # Center text showing total
     center_text = f"{cur_hotspots/1000:.1f}K" if cur_hotspots >= 1000 else str(cur_hotspots)
     fig_donut.update_traces(
         textposition="inside",
         textinfo="percent",
-        hovertemplate="<b>%{label}</b><br>จำนวน: %{value:,} จุด (%{percent})<extra></extra>"
+        hovertemplate="<b>ระดับความเชื่อมั่น: %{label}</b><br>จำนวน: %{value:,} จุด (%{percent})<extra></extra>"
     )
     fig_donut.update_layout(
         **get_theme(
             m=dict(l=10, r=10, t=10, b=10),
             showlegend=True,
             legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5, font=dict(size=12)),
-            annotations=[dict(text=f"<b>{center_text}</b><br><span style='font-size:12px'>TOTAL</span>",
+            annotations=[dict(text=f"<b>{center_text}</b><br><span style='font-size:12px'>รวม</span>",
                               x=0.5, y=0.5, font_size=16, font_color="#FFFFFF", showarrow=False)]
         )
     )
@@ -968,16 +1008,17 @@ def update_entire_dashboard(filter_state, year_value, map_basemap, map_mode):
             color_continuous_scale="Oranges",
         )
         fig_treemap.update_traces(
-            textposition="inside",
+            textposition="outside",
             textfont=dict(color="#FFFFFF", size=12, family="Sarabun", weight="bold"),
+            cliponaxis=False,
             hovertemplate=(
                 "%{y}<br>%{x:,} จุด (%{customdata[0]:.1f}%)<extra></extra>"
             ),
         )
         fig_treemap.update_layout(
-            **get_theme(m=dict(l=110, r=10, t=10, b=20), showlegend=False),
+            **get_theme(m=dict(l=120, r=85, t=10, b=20), showlegend=False),
             coloraxis_showscale=False,
-            xaxis=dict(gridcolor="#1E293B", title=""),
+            xaxis=dict(gridcolor="#1E293B", title="", cliponaxis=False),
             yaxis=dict(gridcolor="#1E293B", title=""),
         )
     else:
