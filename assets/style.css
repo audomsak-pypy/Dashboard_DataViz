@@ -622,6 +622,37 @@ body {
     border-top: 1px solid var(--border-color);
 }
 
+
+/* ── Year range slider ──────────────────────────────────────── */
+.filter-field-wide {
+    grid-column: span 2;
+}
+
+/* ── Sub-map row (conf donut + seasonality) ─────────────────── */
+.sub-map-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+/* ── 2x2 grid override for secondary-visuals ────────────────── */
+.grid-2x2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+/* ── RangeSlider dark-theme overrides ───────────────────────── */
+.year-range-slider .rc-slider-track {
+    background-color: var(--fire-orange);
+}
+.year-range-slider .rc-slider-handle {
+    border-color: var(--fire-orange);
+    background-color: #1E293B;
+}
+.year-range-slider .rc-slider-rail {
+    background-color: #334155;
+}
+
 @media (max-width: 1200px) {
     .secondary-visuals {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -652,8 +683,13 @@ body {
     }
 
     .question-grid,
-    .main-visuals {
+    .main-visuals,
+    .sub-map-row {
         grid-template-columns: minmax(0, 1fr);
+    }
+
+    .grid-2x2 {
+        grid-template-columns: minmax(0, 1fr) !important;
     }
 }
 

@@ -47,9 +47,17 @@ year_ce_values = sorted(int(year) for year in df_events_all["date_parsed"].dt.ye
 
 
 def resolve_year_range(year_value):
-    """Convert the year RadioItems value into an inclusive [start, end] CE range."""
+    """Convert the year RangeSlider value into an inclusive [start, end] CE range.
+
+    Accepts:
+    - None / YEAR_FILTER_ALL     -> full range
+    - [start, end] list/tuple    -> that exact range (RangeSlider output)
+    - a single int/str           -> single-year range (legacy fallback)
+    """
     if year_value in (None, YEAR_FILTER_ALL):
         return [year_ce_min, year_ce_max]
+    if isinstance(year_value, (list, tuple)) and len(year_value) == 2:
+        return [int(year_value[0]), int(year_value[1])]
     year = int(year_value)
     return [year, year]
 
@@ -235,18 +243,19 @@ app.layout = html.Div([
                 ),
             ], className="filter-field"),
             html.Div([
-                html.Label("ปี ค.ศ.", className="filter-label"),
-                dcc.RadioItems(
+                html.Label("ช่วงปี ค.ศ.", className="filter-label"),
+                dcc.RangeSlider(
                     id="filter-year",
-                    options=(
-                        [{"label": "ทั้งหมด", "value": YEAR_FILTER_ALL}]
-                        + [{"label": str(year), "value": year} for year in year_ce_values]
-                    ),
-                    value=YEAR_FILTER_ALL,
-                    inline=True,
-                    className="year-segmented",
+                    min=year_ce_min,
+                    max=year_ce_max,
+                    step=1,
+                    marks={year: {"label": str(year), "style": {"color": "#CBD5E1", "fontSize": "0.8rem"}}
+                           for year in year_ce_values},
+                    value=[year_ce_min, year_ce_max],
+                    tooltip={"placement": "bottom", "always_visible": True},
+                    className="year-range-slider",
                 ),
-            ], className="filter-field"),
+            ], className="filter-field filter-field-wide"),
             html.Div([
                 html.Div([
                     html.Span("ตัวกรองที่ใช้:"),
@@ -298,10 +307,6 @@ app.layout = html.Div([
                         "จุดความร้อนตามเดือนและชั่วโมง (คลิกช่องเพื่อกรอง)",
                         dcc.Graph(id="chart-hour-month", style={"height": "220px"}),
                     ),
-                    chart_card(
-                        "สัดส่วนตามฤดูกาล (คลิกส่วนเพื่อกรอง)",
-                        dcc.Graph(id="chart-seasonality", style={"height": "160px"}),
-                    ),
                 ], className="when-stack"),
             ], className="question-section section-when main-visuals-left"),
             html.Section([
@@ -351,6 +356,16 @@ app.layout = html.Div([
                         ], className="map-control-group"),
                     ], className="map-controls"),
                 ),
+                html.Div([
+                    chart_card(
+                        "ระดับความเชื่อมั่นของจุดความร้อน",
+                        dcc.Graph(id="chart-conf-donut", style={"height": "260px"}),
+                    ),
+                    chart_card(
+                        "สัดส่วนตามฤดูกาล (คลิกส่วนเพื่อกรอง)",
+                        dcc.Graph(id="chart-seasonality", style={"height": "260px"}),
+                    ),
+                ], className="sub-map-row"),
             ], className="question-section section-where main-visuals-right"),
         ], className="main-visuals"),
         html.Section([
@@ -362,40 +377,22 @@ app.layout = html.Div([
             html.P(id="answer-trends", className="section-answer"),
             html.Div([
                 chart_card(
-                    "ระดับความเชื่อมั่นของจุดความร้อน",
-                    dcc.Graph(id="chart-conf-donut", style={"height": "260px"}),
-                ),
-                chart_card(
                     "จุดความร้อนแยกตามประเภทป่า",
-                    dcc.Graph(id="chart-pa-treemap", style={"height": "260px"}),
-                ),
-                chart_card(
-                    "10 ตำบลที่มีจุดความร้อนสูงสุด",
-                    dcc.Graph(id="chart-top-tambon", style={"height": "260px"}),
+                    dcc.Graph(id="chart-pa-treemap", style={"height": "300px"}),
                 ),
                 chart_card(
                     "พื้นที่ปลูกทุเรียนรายปี",
-                    dcc.Graph(id="chart-durian-trend", style={"height": "260px"}),
+                    dcc.Graph(id="chart-durian-trend", style={"height": "300px"}),
                 ),
                 chart_card(
                     "จำนวนวันที่ตรวจพบจุดความร้อนแยกตามตำบล",
-                    dcc.Graph(id="chart-recurrence", style={"height": "260px"}),
+                    dcc.Graph(id="chart-recurrence", style={"height": "300px"}),
                 ),
                 chart_card(
                     "จุดความร้อนแยกตามอำเภอและประเภทป่าอนุรักษ์",
-                    dcc.Graph(id="chart-district-forest", style={"height": "260px"}),
+                    dcc.Graph(id="chart-district-forest", style={"height": "300px"}),
                 ),
-                chart_card(
-                    "พื้นที่ทุเรียนและจุดความร้อนรายตำบล-ปี (คลิกจุดเพื่อกรอง)",
-                    comparison_with_disclaimer(
-                        dcc.Graph(id="chart-durian-hotspots", style={"height": "260px"})
-                    ),
-                ),
-                chart_card(
-                    "จุดความร้อนรายปี (ภาพรวมย่อ)",
-                    dcc.Graph(id="chart-year-sparkline", style={"height": "260px"}),
-                ),
-            ], className="secondary-visuals"),
+            ], className="secondary-visuals grid-2x2"),
         ], className="question-section section-more"),
         html.Footer([
             html.Div(id="dynamic-context-card", className="spatial-facts-footer"),
@@ -421,10 +418,8 @@ app.layout = html.Div([
     Input("chart-activity", "clickData"),
     Input("chart-hour-month", "clickData"),
     Input("chart-seasonality", "clickData"),
-    Input("chart-top-tambon", "clickData"),
     Input("chart-recurrence", "clickData"),
     Input("chart-district-forest", "clickData"),
-    Input("chart-durian-hotspots", "clickData"),
     Input("filter-amphoe", "value"),
     Input("filter-pa", "value"),
     Input("filter-conf", "value"),
@@ -433,8 +428,7 @@ app.layout = html.Div([
 )
 def handle_all_cross_filters(n_reset, map_click, conf_click, pa_click, act_click,
                              hour_month_click, season_click,
-                             top_tambon_click, recurrence_click, district_forest_click,
-                             durian_hotspot_click,
+                             recurrence_click, district_forest_click,
                              amphoe_dd, pa_dd, conf_dd, current_store):
     trigger = ctx.triggered_id
     state = dict(current_store) if current_store else {
@@ -517,14 +511,9 @@ def handle_all_cross_filters(n_reset, map_click, conf_click, pa_click, act_click
         except Exception:
             pass
 
-    # 8. Tambon count and recurrence charts
-    area_clicks = {
-        "chart-top-tambon": top_tambon_click,
-        "chart-recurrence": recurrence_click,
-        "chart-durian-hotspots": durian_hotspot_click,
-    }
-    if trigger in area_clicks and area_clicks[trigger]:
-        point = (area_clicks[trigger].get("points") or [None])[0]
+    # 8. Recurrence chart click → filter tambon
+    if trigger == "chart-recurrence" and recurrence_click:
+        point = (recurrence_click.get("points") or [None])[0]
         custom_data = point.get("customdata") if point else None
         if custom_data and len(custom_data) >= 2:
             state["amphoe"], state["tambon"] = custom_data[0], custom_data[1]
@@ -551,35 +540,24 @@ def handle_all_cross_filters(n_reset, map_click, conf_click, pa_click, act_click
 @app.callback(
     Output("filter-year", "value"),
     Input("chart-activity", "clickData"),
-    Input("chart-durian-hotspots", "clickData"),
     Input("btn-reset", "n_clicks"),
     prevent_initial_call=True,
 )
-def sync_year_controls(activity_click, scatter_click, n_reset):
+def sync_year_controls(activity_click, n_reset):
+    """Clicking an activity bar narrows the slider to just that year; Reset restores full range."""
     if ctx.triggered_id == "btn-reset":
-        return YEAR_FILTER_ALL
+        return [year_ce_min, year_ce_max]
 
-    click_data = {
-        "chart-activity": activity_click,
-        "chart-durian-hotspots": scatter_click,
-    }.get(ctx.triggered_id)
+    click_data = activity_click
     points = (click_data or {}).get("points") or []
     point = points[0] if points else {}
     custom_data = point.get("customdata") or []
-    if ctx.triggered_id == "chart-activity":
-        clicked_year = custom_data[0] if custom_data else None
-        selected_year = int(clicked_year) if isinstance(
-            clicked_year, (int, float, np.integer, np.floating)
-        ) else None
-    else:
-        clicked_be_year = custom_data[2] if len(custom_data) >= 3 else None
-        selected_year = (
-            int(clicked_be_year) - 543
-            if isinstance(clicked_be_year, (int, float, np.integer, np.floating))
-            else None
-        )
+    clicked_year = custom_data[0] if custom_data else None
+    selected_year = int(clicked_year) if isinstance(
+        clicked_year, (int, float, np.integer, np.floating)
+    ) else None
     if selected_year is not None and year_ce_min <= selected_year <= year_ce_max:
-        return selected_year
+        return [selected_year, selected_year]
     return dash.no_update
 
 
@@ -595,7 +573,17 @@ def render_filter_pills(store, year_value):
 
     pills = []
     if year_value not in (None, YEAR_FILTER_ALL):
-        pills.append(html.Span(["📅 ปี ค.ศ.: ", html.Strong(str(int(year_value)))], className="filter-pill"))
+        if isinstance(year_value, (list, tuple)) and len(year_value) == 2:
+            yr_start, yr_end = int(year_value[0]), int(year_value[1])
+            if yr_start == yr_end:
+                yr_label = str(yr_start)
+            else:
+                yr_label = f"{yr_start}–{yr_end}"
+        else:
+            yr_label = str(int(year_value))
+        # Only show pill if not full range
+        if year_value != [year_ce_min, year_ce_max]:
+            pills.append(html.Span(["📅 ปี ค.ศ.: ", html.Strong(yr_label)], className="filter-pill"))
     if store.get("tambon"):
         pills.append(html.Span(["📍 ตำบล: ", html.Strong(store["tambon"])], className="filter-pill"))
     if store.get("amphoe") and not store.get("tambon"):
@@ -642,14 +630,11 @@ def render_filter_pills(store, year_value):
     Output("chart-seasonality",       "figure"),
     Output("chart-conf-donut",        "figure"),
     Output("chart-pa-treemap",        "figure"),
-    Output("chart-top-tambon",        "figure"),
     Output("chart-recurrence",        "figure"),
     Output("chart-district-forest",   "figure"),
-    Output("chart-durian-hotspots",  "figure"),
     Output("dynamic-context-card",    "children"),
     Output("spatial-map",             "figure"),
     Output("chart-durian-trend",      "figure"),
-    Output("chart-year-sparkline",    "figure"),
     # Inputs
     Input("cross-filter-store",       "data"),
     Input("filter-year",              "value"),
@@ -988,42 +973,6 @@ def update_entire_dashboard(filter_state, year_value, map_basemap, map_mode):
     else:
         fig_treemap = go.Figure().update_layout(**get_theme(title="ไม่มีข้อมูล"))
 
-    tambon_counts = (
-        df_h.groupby(["อำเภอ_norm", "ตำบล_norm"])
-        .size()
-        .rename("count")
-        .reset_index()
-    )
-    top_tambon = tambon_counts.sort_values("count", ascending=True).tail(10).copy()
-    top_tambon["พื้นที่"] = top_tambon["ตำบล_norm"] + " · " + top_tambon["อำเภอ_norm"]
-    if not top_tambon.empty:
-        fig_top_tambon = px.bar(
-            top_tambon,
-            x="count",
-            y="พื้นที่",
-            orientation="h",
-            color="count",
-            text=top_tambon["count"].map(lambda count: f"{count:,} จุด"),
-            custom_data=["อำเภอ_norm", "ตำบล_norm"],
-            color_continuous_scale="Oranges",
-        )
-        fig_top_tambon.update_traces(
-            textposition="outside",
-            textfont=dict(size=12, color="#F8FAFC"),
-            hovertemplate="%{y}<br>%{x:,} จุด<extra></extra>",
-        )
-        fig_top_tambon.update_layout(
-            **get_theme(
-                m=dict(l=150, r=35, t=10, b=20),
-                showlegend=False,
-                coloraxis_showscale=False,
-            )
-        )
-        fig_top_tambon.update_xaxes(gridcolor="#1E293B", title="")
-        fig_top_tambon.update_yaxes(autorange="reversed", title="")
-    else:
-        fig_top_tambon = empty_chart("ไม่พบข้อมูลตำบลในช่วงตัวกรองที่เลือก")
-
     recurrence_counts = (
         df_h.assign(report_day=df_h["date_parsed"].dt.date)
         .groupby(["อำเภอ_norm", "ตำบล_norm"])["report_day"]
@@ -1130,45 +1079,6 @@ def update_entire_dashboard(filter_state, year_value, map_basemap, map_mode):
     median_no = group_no["hotspot_count"].median() if n_no else 0.0
     zero_has = int(group_has["hotspot_count"].eq(0).sum())
     zero_no = int(group_no["hotspot_count"].eq(0).sum())
-
-    durian_scatter = joined_active[joined_active["durian_area_rai"].notna()].copy()
-    if not durian_scatter.empty:
-        fig_durian_scatter = px.scatter(
-            durian_scatter,
-            x="durian_area_rai",
-            y="hotspot_count",
-            color="อำเภอ_norm",
-            hover_name="ตำบล_norm",
-            custom_data=["อำเภอ_norm", "ตำบล_norm", "พ.ศ."],
-            labels={
-                "durian_area_rai": "พื้นที่ปลูกทุเรียน (ไร่)",
-                "hotspot_count": "จุดความร้อนที่ตรวจพบ",
-                "อำเภอ_norm": "อำเภอ",
-            },
-            title="หนึ่งจุดแทนหนึ่งตำบล-ปี",
-            color_discrete_sequence=px.colors.qualitative.Bold,
-        )
-        fig_durian_scatter.update_traces(
-            marker=dict(size=10, opacity=0.8, line=dict(width=0.5, color="#E2E8F0")),
-            hovertemplate=(
-                "%{hovertext}<br>อำเภอ: %{customdata[0]}"
-                "<br>พ.ศ. %{customdata[2]:.0f}"
-                "<br>พื้นที่ปลูกทุเรียน: %{x:,.1f} ไร่"
-                "<br>จุดความร้อน: %{y:,} จุด<extra></extra>"
-            ),
-        )
-        fig_durian_scatter.update_layout(
-            **get_theme(
-                m=dict(l=55, r=20, t=55, b=45),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
-            )
-        )
-        fig_durian_scatter.update_xaxes(gridcolor="#1E293B")
-        fig_durian_scatter.update_yaxes(gridcolor="#1E293B")
-    else:
-        fig_durian_scatter = empty_chart(
-            "ไม่พบค่าพื้นที่ทุเรียนที่เป็นตัวเลขสำหรับช่วงปีที่เลือก"
-        )
 
     if n_has and n_no:
         answer_durian = (
@@ -1371,63 +1281,6 @@ def update_entire_dashboard(filter_state, year_value, map_basemap, map_mode):
     else:
         fig_durian_line = empty_chart("ไม่พบข้อมูลพื้นที่ทุเรียนตามตัวกรองที่เลือก")
 
-    spark_events = df_events_all.copy()
-    for column, key in (("อำเภอ_norm", "amphoe"), ("ตำบล_norm", "tambon")):
-        if state.get(key):
-            spark_events = spark_events[spark_events[column] == state[key]]
-    if state.get("conf"):
-        spark_events = spark_events[spark_events["CONFEDENCE"] == state["conf"]]
-    if state.get("pa"):
-        spark_events = spark_events[spark_events["ประเภทป่าอนุรักษ์"] == state["pa"]]
-    if state.get("month"):
-        spark_events = spark_events[spark_events["month"] == state["month"]]
-    if state.get("hour") is not None:
-        spark_events = spark_events[spark_events["hour_of_day"] == state["hour"]]
-    if state.get("season"):
-        dry_months = {11, 12, 1, 2, 3, 4}
-        if state["season"] == "dry":
-            spark_events = spark_events[spark_events["month"].isin(dry_months)]
-        elif state["season"] == "rainy":
-            spark_events = spark_events[~spark_events["month"].isin(dry_months)]
-    spark_counts = (
-        spark_events.assign(year=spark_events["date_parsed"].dt.year)
-        .groupby("year")
-        .size()
-        .rename("count")
-        .reset_index()
-    )
-    spark_counts = spark_counts[spark_counts["year"].isin(year_ce_values)]
-    if not spark_counts.empty:
-        selected_years = set(range(year_range[0], year_range[1] + 1))
-        fig_spark = go.Figure(go.Scatter(
-            x=spark_counts["year"],
-            y=spark_counts["count"],
-            mode="lines+markers+text",
-            text=spark_counts["count"].map(lambda count: f"{int(count):,}"),
-            textposition="top center",
-            line=dict(color="#EA580C", width=2.5),
-            marker=dict(
-                size=9,
-                color=[
-                    "#F59E0B" if int(year) in selected_years else "#64748B"
-                    for year in spark_counts["year"]
-                ],
-            ),
-            hovertemplate="ค.ศ. %{x:.0f}<br>%{y:,} จุด<extra></extra>",
-        ))
-        fig_spark.update_layout(
-            **get_theme(m=dict(l=45, r=15, t=20, b=40)),
-        )
-        fig_spark.update_xaxes(
-            tickmode="array",
-            tickvals=spark_counts["year"].astype(int).tolist(),
-            gridcolor="#1E293B",
-            title="",
-        )
-        fig_spark.update_yaxes(gridcolor="#1E293B", title="จุดความร้อน")
-    else:
-        fig_spark = empty_chart("ไม่พบจุดความร้อนตามตัวกรองที่เลือก")
-
     return (
         integrity_warning,
         integrity_warning_open,
@@ -1449,14 +1302,11 @@ def update_entire_dashboard(filter_state, year_value, map_basemap, map_mode):
         fig_seasonality,
         fig_donut,
         fig_treemap,
-        fig_top_tambon,
         fig_recurrence,
         fig_district_forest,
-        fig_durian_scatter,
         context_card,
         fig_map,
         fig_durian_line,
-        fig_spark,
     )
 
 
