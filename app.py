@@ -203,7 +203,7 @@ app.layout = html.Div([
         html.Div([
             html.Div("🌐", className="brand-mark"),
             html.Div([
-                html.H1("หอดูดาวไฟป่าและพื้นที่ปลูกทุเรียน จังหวัดกาญจนบุรี", className="brand-title"),
+                html.H1("แดชบอร์ดข้อมูลไฟป่าและพื้นที่ปลูกทุเรียน จังหวัดกาญจนบุรี", className="brand-title"),
                 html.P("ข้อมูลจุดความร้อนและพื้นที่เพาะปลูกระดับตำบล", className="brand-subtitle"),
             ]),
         ], className="brand-block"),
@@ -304,17 +304,17 @@ app.layout = html.Div([
             html.Section([
                 html.H2([
                     html.Span("1", className="question-number"),
-                    html.Span("จุดความร้อนเกิดขึ้นเมื่อไร? (ตามเดือน/ชั่วโมง)"),
+                    html.Span("ช่วงเวลาที่เกิดจุดความร้อน"),
                 ], className="question-heading"),
                 html.P(id="answer-when", className="section-answer"),
                 html.Div([
                     chart_card("ช่วงเวลาที่พบจุดความร้อนมาก", html.Div(id="top-hours-list")),
                     chart_card(
-                        "จุดความร้อนรายเดือนแยกปี (คลิกแท่งเพื่อกรองเดือนและปี)",
+                        "จุดความร้อนรายเดือนแยกปี",
                         dcc.Graph(id="chart-activity", style={"height": "220px"}),
                     ),
                     chart_card(
-                        "จุดความร้อนตามเดือนและชั่วโมง (คลิกช่องเพื่อกรอง)",
+                        "จุดความร้อนตามเดือนและชั่วโมง",
                         dcc.Graph(id="chart-hour-month", style={"height": "220px"}),
                     ),
                 ], className="when-stack"),
@@ -322,7 +322,7 @@ app.layout = html.Div([
             html.Section([
                 html.H2([
                     html.Span("2", className="question-number"),
-                    html.Span("จุดความร้อนอยู่ที่ไหน?"),
+                    html.Span("จุดความร้อนตามตำแหน่งและประเภทป่า"),
                 ], className="question-heading"),
                 html.P(id="answer-where", className="section-answer"),
                 chart_card(
@@ -372,7 +372,7 @@ app.layout = html.Div([
                         dcc.Graph(id="chart-conf-donut", style={"height": "260px"}),
                     ),
                     chart_card(
-                        "สัดส่วนตามฤดูกาล (คลิกส่วนเพื่อกรอง)",
+                        "สัดส่วนตามฤดูกาล",
                         dcc.Graph(id="chart-seasonality", style={"height": "260px"}),
                     ),
                 ], className="sub-map-row"),
@@ -579,7 +579,7 @@ def sync_year_controls(activity_click, n_reset):
 )
 def render_filter_pills(store, year_value):
     if not store:
-        return html.Span("แสดงผลภาพรวมทั้งจังหวัด (ไม่มีตัวกรองเฉพาะ)", style={"color": "#64748B", "fontSize": "0.76rem"})
+        return html.Span("แสดงผลภาพรวมทั้งจังหวัด", style={"color": "#64748B", "fontSize": "0.76rem"})
 
     pills = []
     if year_value not in (None, YEAR_FILTER_ALL):
@@ -614,7 +614,7 @@ def render_filter_pills(store, year_value):
         pills.append(html.Span(["🌦️ ฤดูกาล: ", html.Strong(season_name)], className="filter-pill"))
 
     if not pills:
-        return html.Span("แสดงผลภาพรวมทั้งจังหวัด (ไม่มีตัวกรองเฉพาะ)", style={"color": "#64748B", "fontSize": "0.76rem"})
+        return html.Span("แสดงผลภาพรวมทั้งจังหวัด", style={"color": "#64748B", "fontSize": "0.76rem"})
     return pills
 
 
