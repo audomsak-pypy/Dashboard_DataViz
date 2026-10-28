@@ -193,6 +193,7 @@ app = dash.Dash(
     suppress_callback_exceptions=True,
     title=APP_TITLE,
 )
+server = app.server
 
 # ─── Dashboard Layout Helpers ─────────────────────────────────
 def chart_card(title, content, wide=False, action=None):
